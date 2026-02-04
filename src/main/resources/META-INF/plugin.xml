@@ -40,7 +40,8 @@
                popup="true"
                icon="/icons/colorfuldiag.svg">
 
-            <add-to-group group-id="Diagram.DefaultGroup" anchor="last"/>
+            <!-- Add to Tools menu for accessibility -->
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
 
             <action id="ColorfulDiagrams.ColorTable"
                     class="com.tamaygz.colorfuldiag.actions.ColorTableAction"
@@ -88,7 +89,8 @@
                text="Colorful Diagrams"
                popup="true">
 
-            <add-to-group group-id="Diagram.NodePopupGroup" anchor="last"/>
+            <!-- Add to editor popup menu for context menu integration -->
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
 
             <action id="ColorfulDiagrams.ColorTableContext"
                     class="com.tamaygz.colorfuldiag.actions.ColorTableAction"

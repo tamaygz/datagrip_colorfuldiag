@@ -1,5 +1,11 @@
 package com.tamaygz.colorfuldiag.persistence;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.intellij.notification.Notification;
@@ -10,12 +16,6 @@ import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
-
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Project-level service for managing diagram metadata.
@@ -44,27 +44,43 @@ public final class DiagramMetadataService {
     }
 
     /**
+     * Sanitizes a filename by replacing invalid characters.
+     * Windows doesn't allow: < > : " / \ | ? *
+     * This sanitizes the actual filename part, not the directory path.
+     */
+    private static String sanitizeFilename(String filename) {
+        if (filename == null) {
+            return null;
+        }
+        // Replace invalid filesystem characters with underscores
+        return filename.replaceAll("[<>:\"/\\\\|?*]", "_");
+    }
+
+    /**
      * Gets the metadata file path for a diagram file.
      */
     public static String getMetadataFilePath(VirtualFile diagramFile) {
         if (diagramFile == null) {
             return null;
         }
-        String path = diagramFile.getPath();
         String nameWithoutExtension = diagramFile.getNameWithoutExtension();
         String parentPath = diagramFile.getParent() != null ? diagramFile.getParent().getPath() : "";
-        return parentPath + "/" + nameWithoutExtension + METADATA_SUFFIX;
+        // Sanitize the filename component in case it contains invalid characters (like schema colons)
+        return parentPath + "/" + sanitizeFilename(nameWithoutExtension) + METADATA_SUFFIX;
     }
 
     /**
      * Gets the metadata file path for a diagram path string.
+     * Sanitizes the path to remove invalid filename characters (like colons from schema identifiers).
      */
     public static String getMetadataFilePath(String diagramPath) {
         if (diagramPath == null || diagramPath.isEmpty()) {
             return null;
         }
-        int lastDot = diagramPath.lastIndexOf('.');
-        String basePath = lastDot > 0 ? diagramPath.substring(0, lastDot) : diagramPath;
+        // Sanitize the entire path to handle schema identifiers with colons
+        String sanitized = sanitizeFilename(diagramPath);
+        int lastDot = sanitized.lastIndexOf('.');
+        String basePath = lastDot > 0 ? sanitized.substring(0, lastDot) : sanitized;
         return basePath + METADATA_SUFFIX;
     }
 
