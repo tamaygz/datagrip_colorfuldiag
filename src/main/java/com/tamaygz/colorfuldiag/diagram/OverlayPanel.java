@@ -3,6 +3,7 @@ package com.tamaygz.colorfuldiag.diagram;
 import com.tamaygz.colorfuldiag.model.ContainerInfo;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.model.StickyNoteInfo;
+import com.intellij.openapi.diagnostic.Logger;
 
 import javax.swing.*;
 import java.awt.*;
@@ -286,11 +287,24 @@ public class OverlayPanel extends JPanel {
     protected void paintComponent(Graphics g) {
         super.paintComponent(g);
 
-        if (metadata == null) return;
-
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        // Debug: Draw border to show overlay is attached
+        g2d.setColor(new Color(0, 150, 255, 50));
+        g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1, new float[]{5, 5}, 0));
+        g2d.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+
+        if (metadata == null) {
+            // No metadata yet - show empty state
+            g2d.setColor(new Color(100, 100, 100, 100));
+            g2d.setFont(g2d.getFont().deriveFont(11f));
+            g2d.drawString("Colorful Diagrams Ready - Add sticky notes or containers", 10, 30);
+            g2d.dispose();
+            return;
+        }
 
         // Draw containers first (they're behind everything)
         for (ContainerInfo container : metadata.getContainers()) {

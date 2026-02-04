@@ -1,31 +1,27 @@
 package com.tamaygz.colorfuldiag.diagram;
 
-import com.intellij.diagram.DiagramDataModel;
-import com.intellij.diagram.DiagramNode;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import org.jetbrains.annotations.Nullable;
 
 import java.awt.*;
-import java.util.Collection;
 
 /**
- * Wrapper around DiagramDataModel that applies custom colors and styling from metadata.
- * This integrates our custom colors with the native diagram rendering.
+ * Helper class that provides color resolution from metadata.
+ * This integrates our custom colors with the diagram rendering system.
  */
-public class DiagramMetadataDataModel implements DiagramDataModel<Object> {
+public class DiagramMetadataDataModel {
     
-    private final DiagramDataModel<?> delegate;
     private final DiagramMetadata metadata;
 
-    public DiagramMetadataDataModel(DiagramDataModel<?> delegate, DiagramMetadata metadata) {
-        this.delegate = delegate;
+    public DiagramMetadataDataModel(DiagramMetadata metadata) {
         this.metadata = metadata;
     }
 
     /**
      * Gets the effective color for a diagram element.
-     * Checks metadata for custom color first, then falls back to default.
+     * Checks metadata for custom color first, then falls back to container color.
      */
+    @Nullable
     public Color getElementColor(Object element) {
         if (metadata == null || element == null) {
             return null;
@@ -49,26 +45,10 @@ public class DiagramMetadataDataModel implements DiagramDataModel<Object> {
         return null;
     }
 
-    @Nullable
-    @Override
-    public Collection<? extends DiagramNode<Object>> getNodes() {
-        return (Collection<? extends DiagramNode<Object>>) delegate.getNodes();
-    }
-
-    @Nullable
-    @Override
-    public String getNodeName(DiagramNode<Object> node) {
-        return delegate.getNodeName(node);
-    }
-
-    @Nullable
-    @Override
-    public DiagramNode<Object> getNodeByIdentifier(String id) {
-        return (DiagramNode<Object>) delegate.getNodeByIdentifier(id);
-    }
-
-    @Override
-    public void dispose() {
-        delegate.dispose();
+    /**
+     * Gets the metadata instance.
+     */
+    public DiagramMetadata getMetadata() {
+        return metadata;
     }
 }

@@ -13,6 +13,7 @@ import javax.swing.JScrollPane;
 
 import org.jetbrains.annotations.NotNull;
 
+import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileEditor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileEditor.FileEditorManagerListener;
@@ -31,47 +32,65 @@ import com.tamaygz.colorfuldiag.ui.ColorfulDiagramsToolWindowFactory;
  */
 public class DiagramEditorListener implements FileEditorManagerListener {
 
+    private static final Logger LOG = Logger.getInstance(DiagramEditorListener.class);
     private static final Map<String, OverlayPanel> overlayPanels = new HashMap<>();
 
     @Override
     public void fileOpened(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-        // Check if this is a diagram file
-        if (!isDiagramFile(file)) {
-            return;
-        }
+        try {
+            LOG.info("File opened: " + file.getName() + " (path: " + file.getPath() + ")");
+            
+            Project project = source.getProject();
+            if (project == null || project.isDisposed()) {
+                LOG.info("Project is null or disposed");
+                return;
+            }
 
-        Project project = source.getProject();
-        if (project == null || project.isDisposed()) {
-            return;
-        }
+            // Get the file editor
+            FileEditor fileEditor = source.getSelectedEditor(file);
+            if (fileEditor == null) {
+                LOG.info("No file editor for: " + file.getName());
+                return;
+            }
 
-        // Get the file editor
-        FileEditor fileEditor = source.getSelectedEditor(file);
-        if (fileEditor == null) {
-            return;
-        }
+            LOG.info("File editor type: " + fileEditor.getClass().getName());
+            
+            // Check if this is a diagram editor by class name
+            if (!isDiagramEditor(fileEditor)) {
+                LOG.info("Not a diagram editor: " + fileEditor.getClass().getSimpleName());
+                return;
+            }
 
-        // Get the component from the file editor
-        JComponent component = fileEditor.getComponent();
-        if (component == null) {
-            return;
-        }
+            LOG.info("Diagram detected! Attaching overlay to: " + file.getName());
 
-        // Create and attach overlay panel
-        attachOverlayPanel(project, file, component);
-        
-        // Auto-show the tool window when diagram opens
-        showToolWindow(project);
+            // Get the component from the file editor
+            JComponent component = fileEditor.getComponent();
+            if (component == null) {
+                LOG.warn("File editor component is null");
+                return;
+            }
+
+            LOG.info("Editor component type: " + component.getClass().getName());
+            LOG.info("Component size: " + component.getWidth() + "x" + component.getHeight());
+
+            // Create and attach overlay panel
+            attachOverlayPanel(project, file, component);
+            
+            // Auto-show the tool window when diagram opens
+            showToolWindow(project);
+            
+            LOG.info("Overlay attached successfully!");
+        } catch (Exception e) {
+            LOG.error("Error in fileOpened", e);
+        }
     }
 
     @Override
     public void fileClosed(@NotNull FileEditorManager source, @NotNull VirtualFile file) {
-        if (isDiagramFile(file)) {
-            String key = file.getPath();
-            OverlayPanel panel = overlayPanels.remove(key);
-            if (panel != null && panel.getParent() != null) {
-                panel.getParent().remove(panel);
-            }
+        String key = file.getPath();
+        OverlayPanel panel = overlayPanels.remove(key);
+        if (panel != null && panel.getParent() != null) {
+            panel.getParent().remove(panel);
         }
     }
 
@@ -179,16 +198,26 @@ public class DiagramEditorListener implements FileEditorManagerListener {
                 && component.getHeight() > 0;
     }
 
-    private boolean isDiagramFile(VirtualFile file) {
-        if (file == null) {
+    /**
+     * Checks if a FileEditor is a diagram editor by examining its class name.
+     * This works for both UML diagrams and DataGrip database diagrams.
+     */
+    private boolean isDiagramEditor(FileEditor editor) {
+        if (editor == null) {
             return false;
         }
-        String extension = file.getExtension();
-        // DataGrip diagram files typically have .uml extension
-        // or are opened from database objects
-        return "uml".equalsIgnoreCase(extension)
-                || "dbdiagram".equalsIgnoreCase(extension)
-                || file.getPath().contains("diagrams");
+        
+        String className = editor.getClass().getName();
+        String simpleName = editor.getClass().getSimpleName();
+        
+        // Check for common diagram editor classes
+        return className.contains("diagram") 
+                || className.contains("Diagram")
+                || simpleName.contains("Diagram")
+                || simpleName.contains("diagram")
+                || className.contains("uml")
+                || className.contains("UML")
+                || className.contains("Graph");
     }
 
     /**
