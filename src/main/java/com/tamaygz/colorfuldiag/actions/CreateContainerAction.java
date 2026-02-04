@@ -1,13 +1,11 @@
 package com.tamaygz.colorfuldiag.actions;
 
-import com.intellij.diagram.DiagramBuilder;
+import org.jetbrains.annotations.NotNull;
+
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.tamaygz.colorfuldiag.model.ContainerInfo;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.ui.ContainerDialog;
-import org.jetbrains.annotations.NotNull;
-
-import java.awt.*;
 
 /**
  * Action to create a new visual container in the diagram.

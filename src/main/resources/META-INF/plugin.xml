@@ -54,19 +54,25 @@
                     class="com.tamaygz.colorfuldiag.actions.ColorTableAction"
                     text="Color Selected Tables"
                     description="Apply a color to selected tables"
-                    icon="/icons/color_table.svg"/>
+                    icon="/icons/color_table.svg">
+                <keyboard-shortcut first-keystroke="control alt C" keymap="$default"/>
+            </action>
 
             <action id="ColorfulDiagrams.CreateContainer"
                     class="com.tamaygz.colorfuldiag.actions.CreateContainerAction"
                     text="Create Container"
                     description="Create a visual container to group tables"
-                    icon="/icons/container.svg"/>
+                    icon="/icons/container.svg">
+                <keyboard-shortcut first-keystroke="control alt G" keymap="$default"/>
+            </action>
 
             <action id="ColorfulDiagrams.AddStickyNote"
                     class="com.tamaygz.colorfuldiag.actions.AddStickyNoteAction"
                     text="Add Sticky Note"
                     description="Add a sticky note to the diagram"
-                    icon="/icons/sticky_note.svg"/>
+                    icon="/icons/sticky_note.svg">
+                <keyboard-shortcut first-keystroke="control alt N" keymap="$default"/>
+            </action>
 
             <separator/>
 
@@ -82,13 +88,17 @@
                     class="com.tamaygz.colorfuldiag.actions.ExportMetadataAction"
                     text="Export Metadata"
                     description="Export plugin metadata to JSON file"
-                    icon="/icons/export.svg"/>
+                    icon="/icons/export.svg">
+                <keyboard-shortcut first-keystroke="control alt E" keymap="$default"/>
+            </action>
 
             <action id="ColorfulDiagrams.ImportMetadata"
                     class="com.tamaygz.colorfuldiag.actions.ImportMetadataAction"
                     text="Import Metadata"
                     description="Import plugin metadata from JSON file"
-                    icon="/icons/import.svg"/>
+                    icon="/icons/import.svg">
+                <keyboard-shortcut first-keystroke="control alt I" keymap="$default"/>
+            </action>
         </group>
 
         <!-- Context menu actions -->

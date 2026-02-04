@@ -86,6 +86,10 @@ public class OverlayPanel extends JPanel {
         this.diagramPath = path;
     }
     
+    public String getDiagramPath() {
+        return diagramPath;
+    }
+    
     public void setDrawingMode(DrawingMode mode) {
         this.drawingMode = mode;
         drawingPreview = null;
@@ -444,6 +448,7 @@ public class OverlayPanel extends JPanel {
         }
     }
 
+    @SuppressWarnings("unused") // Parameter kept for API consistency
     private void handleMouseReleased(MouseEvent e) {
         // Complete drawing mode
         if (drawingMode != DrawingMode.NONE && drawingStart != null && drawingPreview != null) {

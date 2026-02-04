@@ -1,16 +1,16 @@
 package com.tamaygz.colorfuldiag.diagram;
 
-import com.intellij.diagram.DiagramBuilder;
-import com.intellij.openapi.project.Project;
-import com.intellij.openapi.vfs.VirtualFile;
-import com.tamaygz.colorfuldiag.model.DiagramMetadata;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
 import java.awt.Color;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.WeakHashMap;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
+import com.intellij.diagram.DiagramBuilder;
+import com.intellij.openapi.project.Project;
+import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 
 /**
  * Manages real-time updates to diagram visualization when metadata changes.
@@ -18,13 +18,13 @@ import java.util.WeakHashMap;
  */
 public class DiagramRefreshManager {
     
-    private final Project project;
     private final Map<String, DiagramBuilder> diagramBuilders = new WeakHashMap<>();
     private final Map<String, Long> lastRefreshTime = new HashMap<>();
     private static final long MIN_REFRESH_INTERVAL = 100; // ms
 
+    @SuppressWarnings("unused")
     public DiagramRefreshManager(@NotNull Project project) {
-        this.project = project;
+        // Project is kept for potential future use
     }
 
     /**

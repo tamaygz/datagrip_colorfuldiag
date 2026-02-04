@@ -1,16 +1,15 @@
 package com.tamaygz.colorfuldiag.diagram;
 
-import com.intellij.diagram.DiagramBuilder;
-import com.intellij.diagram.DiagramNode;
+import java.awt.Color;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import com.intellij.openapi.project.Project;
 import com.tamaygz.colorfuldiag.model.ContainerInfo;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.model.TableColorInfo;
 import com.tamaygz.colorfuldiag.persistence.DiagramMetadataService;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import java.awt.*;
 
 /**
  * Utility class for applying colors to diagram elements.
@@ -18,11 +17,9 @@ import java.awt.*;
  */
 public class DiagramColorApplicator {
 
-    private final Project project;
     private final DiagramMetadataService metadataService;
 
     public DiagramColorApplicator(@NotNull Project project) {
-        this.project = project;
         this.metadataService = DiagramMetadataService.getInstance(project);
     }
 
@@ -81,16 +78,6 @@ public class DiagramColorApplicator {
         int r = Math.max(0, (int) (color.getRed() * (1 - factor)));
         int g = Math.max(0, (int) (color.getGreen() * (1 - factor)));
         int b = Math.max(0, (int) (color.getBlue() * (1 - factor)));
-        return new Color(r, g, b, color.getAlpha());
-    }
-
-    /**
-     * Lightens a color by a given factor.
-     */
-    private static Color lighten(Color color, float factor) {
-        int r = Math.min(255, (int) (color.getRed() + (255 - color.getRed()) * factor));
-        int g = Math.min(255, (int) (color.getGreen() + (255 - color.getGreen()) * factor));
-        int b = Math.min(255, (int) (color.getBlue() + (255 - color.getBlue()) * factor));
         return new Color(r, g, b, color.getAlpha());
     }
 
