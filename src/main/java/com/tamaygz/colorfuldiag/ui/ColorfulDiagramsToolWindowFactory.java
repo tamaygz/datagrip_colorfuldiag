@@ -8,6 +8,7 @@ import java.util.TimerTask;
 
 import javax.swing.Box;
 import javax.swing.BoxLayout;
+import javax.swing.Icon;
 import javax.swing.JPanel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
@@ -16,6 +17,7 @@ import org.jetbrains.annotations.NotNull;
 
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.ActionPlaces;
+import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.DefaultActionGroup;
 import com.intellij.openapi.fileEditor.FileEditor;
@@ -23,6 +25,7 @@ import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.DumbAwareAction;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.SimpleToolWindowPanel;
+import com.intellij.openapi.util.IconLoader;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.openapi.wm.ToolWindow;
 import com.intellij.openapi.wm.ToolWindowFactory;
@@ -223,37 +226,47 @@ public class ColorfulDiagramsToolWindowFactory implements ToolWindowFactory {
         group.addSeparator();
 
         // Table coloring
-        group.add(actionManager.getAction("ColorfulDiagrams.ColorTable"));
+        addActionSafe(group, actionManager, "ColorfulDiagrams.ColorTable");
 
         // Container operations
         group.addSeparator();
-        group.add(actionManager.getAction("ColorfulDiagrams.CreateContainer"));
-        group.add(actionManager.getAction("ColorfulDiagrams.AddToContainerContext"));
-        group.add(actionManager.getAction("ColorfulDiagrams.RemoveFromContainerContext"));
+        addActionSafe(group, actionManager, "ColorfulDiagrams.CreateContainer");
 
         // Sticky notes
         group.addSeparator();
-        group.add(actionManager.getAction("ColorfulDiagrams.AddStickyNote"));
+        addActionSafe(group, actionManager, "ColorfulDiagrams.AddStickyNote");
 
         // Reset and utilities
         group.addSeparator();
-        group.add(actionManager.getAction("ColorfulDiagrams.ResetColors"));
+        addActionSafe(group, actionManager, "ColorfulDiagrams.ResetColors");
 
         group.addSeparator();
-        group.add(actionManager.getAction("ColorfulDiagrams.ExportMetadata"));
-        group.add(actionManager.getAction("ColorfulDiagrams.ImportMetadata"));
+        addActionSafe(group, actionManager, "ColorfulDiagrams.ExportMetadata");
+        addActionSafe(group, actionManager, "ColorfulDiagrams.ImportMetadata");
 
         return group;
+    }
+
+    /**
+     * Safely adds an action to the group, only if it exists.
+     */
+    private void addActionSafe(DefaultActionGroup group, ActionManager actionManager, String actionId) {
+        AnAction action = actionManager.getAction(actionId);
+        if (action != null) {
+            group.add(action);
+        }
     }
 
     /**
      * Action to manually refresh/reattach overlays.
      */
     private static class RefreshOverlayAction extends DumbAwareAction {
+        private static final Icon REFRESH_ICON = IconLoader.getIcon("/icons/refresh.svg", RefreshOverlayAction.class);
+        
         private final Project project;
 
         RefreshOverlayAction(Project project) {
-            super("Refresh Overlay", "Reattach overlay panel to current diagram", null);
+            super("Refresh Overlay", "Reattach overlay panel to current diagram", REFRESH_ICON);
             this.project = project;
         }
 
