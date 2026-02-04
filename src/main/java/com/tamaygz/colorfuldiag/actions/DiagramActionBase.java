@@ -1,6 +1,7 @@
 package com.tamaygz.colorfuldiag.actions;
 
 import com.intellij.diagram.DiagramBuilder;
+import com.intellij.diagram.DiagramDataKeys;
 import com.intellij.diagram.DiagramDataModel;
 import com.intellij.diagram.DiagramNode;
 import com.intellij.openapi.actionSystem.ActionUpdateThread;
@@ -46,7 +47,7 @@ public abstract class DiagramActionBase extends AnAction {
      */
     @Nullable
     protected DiagramBuilder getDiagramBuilder(@NotNull AnActionEvent e) {
-        return e.getData(DiagramBuilder.DATA_KEY);
+        return e.getData(DiagramDataKeys.BUILDER);
     }
 
     /**
@@ -61,6 +62,7 @@ public abstract class DiagramActionBase extends AnAction {
     /**
      * Gets selected nodes from the diagram.
      */
+    @SuppressWarnings("unchecked")
     @NotNull
     protected Collection<DiagramNode<?>> getSelectedNodes(@NotNull AnActionEvent e) {
         DiagramBuilder builder = getDiagramBuilder(e);
@@ -68,9 +70,22 @@ public abstract class DiagramActionBase extends AnAction {
             return Collections.emptyList();
         }
 
-        // Try to get selection from the graph
+        // Try to get selection from the graph view
         try {
-            return builder.getSelectedNodes();
+            var graph = builder.getView().getGraphComponent().getGraph();
+            var selectedCells = graph.getSelectionCells();
+            if (selectedCells == null || selectedCells.length == 0) {
+                return Collections.emptyList();
+            }
+
+            java.util.List<DiagramNode<?>> nodes = new java.util.ArrayList<>();
+            for (Object cell : selectedCells) {
+                Object value = graph.getModel().getValue(cell);
+                if (value instanceof DiagramNode) {
+                    nodes.add((DiagramNode<?>) value);
+                }
+            }
+            return nodes;
         } catch (Exception ex) {
             return Collections.emptyList();
         }
