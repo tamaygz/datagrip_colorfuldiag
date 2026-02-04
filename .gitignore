@@ -26,3 +26,7 @@ Thumbs.db
 
 # Local configuration
 local.properties
+
+# keys
+.mcp.json
+mcp.json
