@@ -159,10 +159,19 @@ public class DiagramEditorListener implements FileEditorManagerListener {
         overlayPanel.setOpaque(false);
         overlayPanel.setVisible(true);
         
+        // Set project and diagram path for context menus and actions
+        overlayPanel.setProject(project);
+        overlayPanel.setDiagramPath(filePath);
+        
         // Load metadata from service
         DiagramMetadataService service = DiagramMetadataService.getInstance(project);
         DiagramMetadata metadata = service.loadMetadata(file);
         overlayPanel.setMetadata(metadata);
+        
+        // Set up metadata change callback to save changes
+        overlayPanel.setOnMetadataChanged(updatedMetadata -> {
+            service.saveMetadata(file, updatedMetadata);
+        });
 
         // Try multiple attachment strategies
         boolean attached = false;

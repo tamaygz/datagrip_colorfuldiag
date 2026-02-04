@@ -1,14 +1,23 @@
 package com.tamaygz.colorfuldiag.ui;
 
-import com.intellij.openapi.project.Project;
-import com.intellij.ui.ColorChooserService;
-import com.tamaygz.colorfuldiag.model.ContainerInfo;
-import com.tamaygz.colorfuldiag.model.TableColorInfo;
-
-import javax.swing.*;
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Dimension;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.GridLayout;
+import java.awt.RenderingHints;
 import java.awt.event.ActionListener;
 import java.util.function.Consumer;
+
+import javax.swing.BorderFactory;
+import javax.swing.JButton;
+import javax.swing.JMenuItem;
+import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+
+import com.intellij.openapi.project.Project;
+import com.tamaygz.colorfuldiag.model.ContainerInfo;
+import com.tamaygz.colorfuldiag.model.TableColorInfo;
 
 /**
  * Quick color picker popup menu for containers.
@@ -49,14 +58,8 @@ public class QuickColorPickerPopup extends JPopupMenu {
         JMenuItem customItem = new JMenuItem("Choose Custom Color...");
         customItem.addActionListener(e -> {
             Color current = container.getAwtColor();
-            Color newColor = ColorChooserService.getInstance().showDialog(
-                null, 
-                project,
-                "Choose Container Color",
-                current != null ? current : QUICK_COLORS[0],
-                true,
-                null,
-                true
+            Color newColor = ColorPickerDialog.showDialog(project,
+                current != null ? current : QUICK_COLORS[0]
             );
             if (newColor != null) {
                 onColorSelected.accept(newColor);

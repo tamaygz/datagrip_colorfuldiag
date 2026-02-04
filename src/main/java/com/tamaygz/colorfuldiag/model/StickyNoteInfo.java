@@ -29,6 +29,13 @@ public class StickyNoteInfo {
         this.color = color;
         this.position = new int[]{x, y};
     }
+    
+    public StickyNoteInfo(int[] position, int[] size, String text) {
+        this();
+        this.position = position;
+        this.size = size;
+        this.text = text;
+    }
 
     public String getId() {
         return id;
@@ -52,6 +59,10 @@ public class StickyNoteInfo {
 
     public void setColor(String color) {
         this.color = color;
+    }
+    
+    public void setColor(Color awtColor) {
+        this.color = awtColor != null ? TableColorInfo.colorToHex(awtColor) : "#FFEAA7";
     }
 
     public int[] getPosition() {

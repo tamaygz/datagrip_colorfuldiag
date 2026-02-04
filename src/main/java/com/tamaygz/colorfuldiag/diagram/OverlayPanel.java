@@ -11,11 +11,11 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
-import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 import javax.swing.JMenuItem;
@@ -25,11 +25,11 @@ import javax.swing.SwingUtilities;
 
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.project.Project;
-import com.intellij.ui.ColorChooserService;
 import com.tamaygz.colorfuldiag.model.ContainerInfo;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.model.StickyNoteInfo;
-import com.tamaygz.colorfuldiag.services.DiagramMetadataService;
+import com.tamaygz.colorfuldiag.model.TableColorInfo;
+import com.tamaygz.colorfuldiag.ui.ColorPickerDialog;
 import com.tamaygz.colorfuldiag.ui.QuickColorPickerPopup;
 import com.tamaygz.colorfuldiag.ui.RenameContainerDialog;
 
@@ -108,10 +108,6 @@ public class OverlayPanel extends JPanel {
     private void notifyMetadataChanged() {
         if (onMetadataChanged != null && metadata != null) {
             onMetadataChanged.accept(metadata);
-        }
-        // Also save via service if project available
-        if (project != null && diagramPath != null && metadata != null) {
-            DiagramMetadataService.getInstance(project).saveMetadata(diagramPath, metadata);
         }
     }
 
@@ -335,9 +331,9 @@ public class OverlayPanel extends JPanel {
     
     private void showRenameContainerDialog(ContainerInfo container) {
         if (project == null) return;
-        RenameContainerDialog dialog = new RenameContainerDialog(project, container.getTitle());
+        RenameContainerDialog dialog = new RenameContainerDialog(project, container);
         if (dialog.showAndGet()) {
-            container.setTitle(dialog.getNewName());
+            dialog.applyToContainer();
             notifyMetadataChanged();
             repaint();
         }
@@ -346,10 +342,8 @@ public class OverlayPanel extends JPanel {
     private void showColorChooser(ContainerInfo container) {
         if (project == null) return;
         Color current = container.getAwtColor();
-        Color newColor = ColorChooserService.getInstance().showDialog(
-            null, project, "Choose Container Color",
-            current != null ? current : new Color(0x45B7D1),
-            true, null, true
+        Color newColor = ColorPickerDialog.showDialog(project, 
+            current != null ? current : new Color(0x45B7D1)
         );
         if (newColor != null) {
             container.setColor(newColor);
@@ -373,10 +367,8 @@ public class OverlayPanel extends JPanel {
     private void showNoteColorChooser(StickyNoteInfo note) {
         if (project == null) return;
         Color current = note.getAwtColor();
-        Color newColor = ColorChooserService.getInstance().showDialog(
-            null, project, "Choose Note Color",
-            current != null ? current : new Color(0xFFEB3B),
-            true, null, true
+        Color newColor = ColorPickerDialog.showDialog(project,
+            current != null ? current : new Color(0xFFEB3B)
         );
         if (newColor != null) {
             note.setColor(newColor);
@@ -732,12 +724,81 @@ public class OverlayPanel extends JPanel {
             drawStickyNote(g2d, note);
         }
         
+        // Draw table color legend (compact display of colored tables)
+        if (!metadata.getTables().isEmpty()) {
+            drawTableColorLegend(g2d);
+        }
+        
         // Draw drawing preview
         if (drawingPreview != null && drawingMode != DrawingMode.NONE) {
             drawDrawingPreview(g2d);
         }
 
         g2d.dispose();
+    }
+    
+    /**
+     * Draws a compact legend showing which tables have custom colors.
+     * This provides visual feedback since we can't modify diagram node colors directly.
+     */
+    private void drawTableColorLegend(Graphics2D g2d) {
+        Map<String, TableColorInfo> tables = metadata.getTables();
+        if (tables.isEmpty()) return;
+        
+        int legendX = getWidth() - 200;
+        int legendY = 10;
+        int itemHeight = 16;
+        int padding = 5;
+        
+        // Calculate legend size
+        int legendWidth = 190;
+        int legendHeight = padding * 2 + Math.min(tables.size(), 8) * itemHeight + 18;
+        
+        // Draw legend background
+        g2d.setColor(new Color(40, 40, 40, 200));
+        g2d.fillRoundRect(legendX, legendY, legendWidth, legendHeight, 6, 6);
+        
+        // Draw legend border
+        g2d.setColor(new Color(80, 80, 80));
+        g2d.drawRoundRect(legendX, legendY, legendWidth, legendHeight, 6, 6);
+        
+        // Draw title
+        g2d.setColor(Color.WHITE);
+        g2d.setFont(g2d.getFont().deriveFont(Font.BOLD, 10f));
+        g2d.drawString("Table Colors", legendX + padding, legendY + 14);
+        
+        // Draw color items
+        g2d.setFont(g2d.getFont().deriveFont(Font.PLAIN, 9f));
+        int y = legendY + 22;
+        int count = 0;
+        for (Map.Entry<String, TableColorInfo> entry : tables.entrySet()) {
+            if (count >= 8) {
+                // Show ellipsis for more
+                g2d.setColor(Color.LIGHT_GRAY);
+                g2d.drawString("..." + (tables.size() - count) + " more", legendX + padding, y + 10);
+                break;
+            }
+            
+            String tableId = entry.getKey();
+            TableColorInfo colorInfo = entry.getValue();
+            Color color = colorInfo.getAwtColor();
+            
+            if (color != null) {
+                // Draw color swatch
+                g2d.setColor(color);
+                g2d.fillRoundRect(legendX + padding, y, 12, 12, 2, 2);
+                g2d.setColor(color.darker());
+                g2d.drawRoundRect(legendX + padding, y, 12, 12, 2, 2);
+                
+                // Draw table name (truncated)
+                g2d.setColor(Color.WHITE);
+                String displayName = tableId.length() > 25 ? tableId.substring(0, 22) + "..." : tableId;
+                g2d.drawString(displayName, legendX + padding + 18, y + 10);
+            }
+            
+            y += itemHeight;
+            count++;
+        }
     }
     
     private void drawDrawingPreview(Graphics2D g2d) {

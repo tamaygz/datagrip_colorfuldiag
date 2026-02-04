@@ -29,6 +29,12 @@ public class ContainerInfo {
         this.color = color;
         this.bounds = new int[]{x, y, width, height};
     }
+    
+    public ContainerInfo(String title, int[] bounds) {
+        this();
+        this.title = title;
+        this.bounds = bounds;
+    }
 
     public String getId() {
         return id;
@@ -52,6 +58,10 @@ public class ContainerInfo {
 
     public void setColor(String color) {
         this.color = color;
+    }
+    
+    public void setColor(Color awtColor) {
+        this.color = awtColor != null ? TableColorInfo.colorToHex(awtColor) : null;
     }
 
     public int[] getBounds() {
