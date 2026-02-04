@@ -10,7 +10,8 @@
       "Bash(gradle build:*)",
       "Bash(dir:*)",
       "Bash(cmd.exe /c \"c:\\\\Users\\\\Tamay\\\\vscode\\\\datagrip_colorfuldiag\\\\gradlew.bat build\")",
-      "Bash(powershell.exe -Command \"Set-Location ''c:\\\\Users\\\\Tamay\\\\vscode\\\\datagrip_colorfuldiag''; .\\\\gradlew.bat build 2>&1\")"
+      "Bash(powershell.exe -Command \"Set-Location ''c:\\\\Users\\\\Tamay\\\\vscode\\\\datagrip_colorfuldiag''; .\\\\gradlew.bat build 2>&1\")",
+      "WebFetch(domain:github.com)"
     ]
   }
 }
