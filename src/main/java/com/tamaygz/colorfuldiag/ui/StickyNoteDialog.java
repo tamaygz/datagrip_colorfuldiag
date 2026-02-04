@@ -15,8 +15,12 @@ public class StickyNoteDialog extends DialogWrapper {
     private JTextArea textArea;
     private JButton colorButton;
     private Color selectedColor;
+    private JSpinner xSpinner;
+    private JSpinner ySpinner;
 
     private static final Color DEFAULT_COLOR = new Color(0xFFEAA7);
+    private static final int DEFAULT_X = 100;
+    private static final int DEFAULT_Y = 100;
 
     // Preset colors for sticky notes
     private static final Color[] NOTE_COLORS = {
@@ -88,6 +92,9 @@ public class StickyNoteDialog extends DialogWrapper {
 
         panel.add(colorPanel, BorderLayout.NORTH);
 
+        // Center panel with text and position
+        JPanel centerPanel = new JPanel(new BorderLayout(5, 5));
+        
         // Text area
         textArea = new JTextArea(5, 30);
         textArea.setLineWrap(true);
@@ -99,10 +106,26 @@ public class StickyNoteDialog extends DialogWrapper {
         ));
 
         JScrollPane scrollPane = new JScrollPane(textArea);
-        scrollPane.setPreferredSize(new Dimension(350, 150));
-        panel.add(scrollPane, BorderLayout.CENTER);
+        scrollPane.setPreferredSize(new Dimension(350, 120));
+        centerPanel.add(scrollPane, BorderLayout.CENTER);
 
-        panel.setPreferredSize(new Dimension(400, 220));
+        // Position panel
+        JPanel positionPanel = new JPanel(new GridLayout(1, 4, 5, 5));
+        positionPanel.setBorder(BorderFactory.createTitledBorder("Position on Diagram"));
+        
+        positionPanel.add(new JLabel("X:"));
+        xSpinner = new JSpinner(new SpinnerNumberModel(DEFAULT_X, 0, 10000, 10));
+        positionPanel.add(xSpinner);
+        
+        positionPanel.add(new JLabel("Y:"));
+        ySpinner = new JSpinner(new SpinnerNumberModel(DEFAULT_Y, 0, 10000, 10));
+        positionPanel.add(ySpinner);
+        
+        centerPanel.add(positionPanel, BorderLayout.SOUTH);
+        
+        panel.add(centerPanel, BorderLayout.CENTER);
+
+        panel.setPreferredSize(new Dimension(400, 280));
         return panel;
     }
 
@@ -120,10 +143,21 @@ public class StickyNoteDialog extends DialogWrapper {
     }
 
     public StickyNoteInfo createStickyNoteInfo(int x, int y) {
+        // Use values from spinners if they exist, otherwise use provided defaults
+        int finalX = x;
+        int finalY = y;
+        
+        if (xSpinner != null) {
+            finalX = ((Number) xSpinner.getValue()).intValue();
+        }
+        if (ySpinner != null) {
+            finalY = ((Number) ySpinner.getValue()).intValue();
+        }
+        
         return new StickyNoteInfo(
                 getNoteText(),
                 getNoteColorHex(),
-                x, y
+                finalX, finalY
         );
     }
 }

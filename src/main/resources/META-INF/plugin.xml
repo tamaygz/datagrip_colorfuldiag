@@ -27,6 +27,13 @@
                            displayType="BALLOON"
                            toolWindowId="Database"/>
 
+        <!-- Tool window for the Colorful Diagrams toolbox -->
+        <!-- The tool window can be docked on any side (left, right, bottom) or as a floating window -->
+        <toolWindow id="Colorful Diagrams"
+                    anchor="right"
+                    icon="/icons/colorfuldiag.svg"
+                    factoryClass="com.tamaygz.colorfuldiag.ui.ColorfulDiagramsToolWindowFactory"/>
+
         <!-- File editor manager listener for diagram file open/close events -->
         <fileEditorManagerListener
                 implementation="com.tamaygz.colorfuldiag.diagram.DiagramEditorListener"/>

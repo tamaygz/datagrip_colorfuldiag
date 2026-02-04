@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "com.tamaygz"
-version = "1.0.3"
+version = "1.0.7"
 
 repositories {
     mavenCentral()
