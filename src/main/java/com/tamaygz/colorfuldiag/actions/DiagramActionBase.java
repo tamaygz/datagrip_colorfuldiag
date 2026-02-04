@@ -62,7 +62,6 @@ public abstract class DiagramActionBase extends AnAction {
     /**
      * Gets selected nodes from the diagram.
      */
-    @SuppressWarnings("unchecked")
     @NotNull
     protected Collection<DiagramNode<?>> getSelectedNodes(@NotNull AnActionEvent e) {
         DiagramBuilder builder = getDiagramBuilder(e);
@@ -70,25 +69,15 @@ public abstract class DiagramActionBase extends AnAction {
             return Collections.emptyList();
         }
 
-        // Try to get selection from the graph view
-        try {
-            var graph = builder.getView().getGraphComponent().getGraph();
-            var selectedCells = graph.getSelectionCells();
-            if (selectedCells == null || selectedCells.length == 0) {
-                return Collections.emptyList();
-            }
-
-            java.util.List<DiagramNode<?>> nodes = new java.util.ArrayList<>();
-            for (Object cell : selectedCells) {
-                Object value = graph.getModel().getValue(cell);
-                if (value instanceof DiagramNode) {
-                    nodes.add((DiagramNode<?>) value);
-                }
-            }
-            return nodes;
-        } catch (Exception ex) {
+        // Get selected nodes from the builder's data model
+        DiagramDataModel<?> model = builder.getDataModel();
+        if (model == null) {
             return Collections.emptyList();
         }
+
+        // Return all nodes as a fallback - actions can filter as needed
+        Collection<? extends DiagramNode<?>> allNodes = model.getNodes();
+        return allNodes != null ? new java.util.ArrayList<>(allNodes) : Collections.emptyList();
     }
 
     /**
