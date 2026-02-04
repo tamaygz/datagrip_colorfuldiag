@@ -27,8 +27,8 @@
                            displayType="BALLOON"
                            toolWindowId="Database"/>
 
-        <!-- File editor listener for diagram files -->
-        <editorFactoryListener
+        <!-- File editor manager listener for diagram file open/close events -->
+        <fileEditorManagerListener
                 implementation="com.tamaygz.colorfuldiag.diagram.DiagramEditorListener"/>
     </extensions>
 

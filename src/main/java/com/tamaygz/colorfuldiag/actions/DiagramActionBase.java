@@ -133,6 +133,9 @@ public abstract class DiagramActionBase extends AnAction {
                     DiagramMetadataService.getMetadataFilePath(diagramPath),
                     metadata
             );
+            
+            // Update the overlay panel with the new metadata
+            com.tamaygz.colorfuldiag.diagram.DiagramEditorListener.updateOverlayMetadata(diagramPath, metadata);
         }
     }
 
