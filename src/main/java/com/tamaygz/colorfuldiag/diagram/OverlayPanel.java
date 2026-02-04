@@ -879,6 +879,11 @@ public class OverlayPanel extends JPanel {
      */
     @Override
     public boolean contains(int x, int y) {
+        // Always intercept when in drawing mode
+        if (drawingMode != DrawingMode.NONE) {
+            return true;
+        }
+        
         // Only intercept mouse events when over an element
         if (metadata == null) {
             return false;
