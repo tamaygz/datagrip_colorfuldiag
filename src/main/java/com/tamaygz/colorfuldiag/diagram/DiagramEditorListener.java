@@ -49,11 +49,6 @@ public class DiagramEditorListener implements EditorFactoryListener {
             }
         }
 
-        @Override
-        public void selectionChanged(@NotNull FileEditorManagerListener.FileEditorManagerEvent event) {
-            // Handle editor selection changes if needed
-        }
-
         private boolean isDiagramFile(VirtualFile file) {
             if (file == null) {
                 return false;
