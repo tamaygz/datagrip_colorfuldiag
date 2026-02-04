@@ -655,4 +655,86 @@ public class DiagramEditorListener implements FileEditorManagerListener {
             listener.attachOverlayWithDelay(project, file, component, 0);
         });
     }
+    
+    /**
+     * Called when the selected editor tab changes.
+     * This is critical for updating the overlay when switching between diagram tabs.
+     */
+    @Override
+    public void selectionChanged(@NotNull com.intellij.openapi.fileEditor.FileEditorManagerEvent event) {
+        VirtualFile newFile = event.getNewFile();
+        VirtualFile oldFile = event.getOldFile();
+        Project project = event.getManager().getProject();
+        
+        if (project == null || project.isDisposed()) {
+            return;
+        }
+        
+        LOG.info("Selection changed: " + (oldFile != null ? oldFile.getName() : "null") + 
+                 " -> " + (newFile != null ? newFile.getName() : "null"));
+        
+        // Hide all overlays first
+        hideAllOverlays();
+        
+        if (newFile == null) {
+            return;
+        }
+        
+        // Get the new editor
+        FileEditor newEditor = event.getNewEditor();
+        if (newEditor == null) {
+            return;
+        }
+        
+        // Check if the new file is a diagram
+        if (!isDiagramEditor(newEditor)) {
+            LOG.debug("New editor is not a diagram: " + newEditor.getClass().getSimpleName());
+            return;
+        }
+        
+        String newFilePath = newFile.getPath();
+        
+        // Show the overlay for the new diagram
+        OverlayPanel panel = overlayPanels.get(newFilePath);
+        if (panel != null) {
+            // Update metadata in case it changed
+            DiagramMetadataService service = DiagramMetadataService.getInstance(project);
+            DiagramMetadata metadata = service.loadMetadata(newFile);
+            panel.setMetadata(metadata);
+            panel.setDiagramPath(newFilePath);
+            panel.setVisible(true);
+            panel.repaint();
+            LOG.info("Switched to existing overlay for: " + newFile.getName());
+        } else {
+            // No overlay exists yet - attach one
+            LOG.info("No overlay for new diagram, attaching: " + newFile.getName());
+            JComponent component = newEditor.getComponent();
+            if (component != null) {
+                editorComponents.put(newFilePath, component);
+                attachOverlayWithDelay(project, newFile, component, 0);
+            }
+        }
+    }
+    
+    /**
+     * Hides all overlay panels.
+     */
+    private static void hideAllOverlays() {
+        for (OverlayPanel panel : overlayPanels.values()) {
+            panel.setVisible(false);
+        }
+    }
+    
+    /**
+     * Shows only the overlay for the specified diagram path, hiding all others.
+     */
+    public static void showOnlyOverlay(String diagramPath) {
+        for (Map.Entry<String, OverlayPanel> entry : overlayPanels.entrySet()) {
+            boolean shouldShow = pathsMatch(entry.getKey(), diagramPath);
+            entry.getValue().setVisible(shouldShow);
+            if (shouldShow) {
+                entry.getValue().repaint();
+            }
+        }
+    }
 }

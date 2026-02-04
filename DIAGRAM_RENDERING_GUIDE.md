@@ -76,12 +76,17 @@ We've implemented an improved overlay system with multiple attachment strategies
    - Component lifecycle handling (resize, dispose events)
    - Thread-safe panel management with ConcurrentHashMap
 
-2. **OverlayPanel** - Visual containers and sticky notes
+2. **OverlayPanel** - Visual containers, sticky notes, and color legend
    - Graphics2D custom rendering with anti-aliasing
    - Interactive drag/resize with mouse event handling
    - Smart mouse interception (only intercepts when over elements)
    - Double buffering for smoother rendering
    - Debug mode flag for development
+   - **Canvas right-click context menu** - Quick access to create containers/notes
+   - **Container right-click actions** - Rename, change color, delete, reorder
+   - **Sticky note right-click actions** - Edit text, change color, delete
+   - **Table color legend** - Shows colored tables in corner overlay
+   - **Drawing mode** - Draw containers and notes by click-drag
 
 3. **DiagramRefreshManager** - Real-time synchronization
    - Metadata change tracking
@@ -94,6 +99,16 @@ We've implemented an improved overlay system with multiple attachment strategies
    - "Refresh Overlay" action for manual reattachment
    - Periodic status updates every 2 seconds
    - Help tips for users
+
+### Known Limitations
+
+**Table Node Coloring:**
+Due to the overlay approach, table colors cannot be applied directly to the diagram's native node rendering. The diagram nodes use yFiles' graph rendering pipeline which requires deep integration with the DiagramProvider.
+
+**Current Workarounds:**
+1. **Color Legend** - A compact legend in the corner shows which tables have colors assigned
+2. **DataGrip Native Coloring** - Use DataGrip's built-in "Tools → Set Color" feature for actual node colors
+3. **Container Inheritance** - Tables assigned to colored containers inherit that container's visual grouping
 
 ### 4. **Performance Optimization**
 
