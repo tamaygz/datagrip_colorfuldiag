@@ -188,6 +188,9 @@ JSON structure example:
    - ColorfulDiagramsToolWindowFactory implements dockable toolbox
    - Auto-opens when diagram editor is activated
    - Lists available actions and metadata
+   - **NEW:** Status panel showing current diagram and overlay state
+   - **NEW:** Refresh Overlay action for manual reattachment
+   - **NEW:** Periodic status updates every 2 seconds
 
 4. **Sticky Notes**
    - StickyNoteDialog for text input
@@ -197,7 +200,9 @@ JSON structure example:
 5. **Diagram Response & Rendering**
    - DiagramEditorListener detects diagram editor events
    - OverlayPanel renders containers and sticky notes as overlays
-   - Improved component attachment with robust hierarchy traversal
+   - **NEW:** Multiple attachment strategies (glass pane, layered pane, direct)
+   - **NEW:** Delayed attachment with retry mechanism for component readiness
+   - **NEW:** Better diagram editor detection with expanded patterns
    - Real-time synchronization via DiagramRefreshManager
 
 6. **Real-Time Updates**

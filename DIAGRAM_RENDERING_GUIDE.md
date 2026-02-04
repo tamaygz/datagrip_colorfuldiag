@@ -63,29 +63,37 @@ public class CustomPresentationModel extends BasicGraphPresentationModel {
 - Integrated with database tool window
 - Persists with database metadata
 
-### 3. **Current Implementation (Hybrid Approach)**
+### 3. **Current Implementation (Multi-Strategy Approach)**
 
-We've implemented:
+We've implemented an improved overlay system with multiple attachment strategies:
 
-1. **DiagramEditorListener** - Improved attachment logic
-   - Better component traversal (scroll panes, layered panes)
-   - Proper z-order management
-   - Resize listener for responsive overlay
+1. **DiagramEditorListener** - Robust attachment logic
+   - **Strategy 1: Glass Pane** - Uses JLayeredPane.PALETTE_LAYER on root pane (most reliable)
+   - **Strategy 2: Layered Pane** - Finds JLayeredPane in component hierarchy
+   - **Strategy 3: Direct Attachment** - Falls back to editor component
+   - Delayed attachment with retry mechanism (component may not be ready immediately)
+   - Better diagram editor detection with expanded class name patterns
+   - Component lifecycle handling (resize, dispose events)
+   - Thread-safe panel management with ConcurrentHashMap
 
 2. **OverlayPanel** - Visual containers and sticky notes
-   - Graphics2D custom rendering
-   - Interactive drag/resize
-   - Supports transparency and styling
+   - Graphics2D custom rendering with anti-aliasing
+   - Interactive drag/resize with mouse event handling
+   - Smart mouse interception (only intercepts when over elements)
+   - Double buffering for smoother rendering
+   - Debug mode flag for development
 
 3. **DiagramRefreshManager** - Real-time synchronization
    - Metadata change tracking
    - Debounced refresh (prevents flicker)
    - Color resolution for elements
 
-4. **DiagramMetadataDataModel** - Data integration
-   - Wraps existing DiagramDataModel
-   - Resolves colors from metadata
-   - Provides color lookups for rendering
+4. **ColorfulDiagramsToolWindowFactory** - Enhanced status panel
+   - Shows current diagram and overlay attachment status
+   - Displays metadata counts (notes, containers, colors)
+   - "Refresh Overlay" action for manual reattachment
+   - Periodic status updates every 2 seconds
+   - Help tips for users
 
 ### 4. **Performance Optimization**
 

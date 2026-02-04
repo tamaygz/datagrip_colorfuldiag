@@ -1,16 +1,27 @@
 package com.tamaygz.colorfuldiag.diagram;
 
-import com.tamaygz.colorfuldiag.model.ContainerInfo;
-import com.tamaygz.colorfuldiag.model.DiagramMetadata;
-import com.tamaygz.colorfuldiag.model.StickyNoteInfo;
-import com.intellij.openapi.diagnostic.Logger;
-
-import javax.swing.*;
-import java.awt.*;
+import java.awt.BasicStroke;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Dimension;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Point;
+import java.awt.Rectangle;
+import java.awt.RenderingHints;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.List;
+
+import javax.swing.JPanel;
+
+import com.intellij.openapi.diagnostic.Logger;
+import com.tamaygz.colorfuldiag.model.ContainerInfo;
+import com.tamaygz.colorfuldiag.model.DiagramMetadata;
+import com.tamaygz.colorfuldiag.model.StickyNoteInfo;
 
 /**
  * Overlay panel that renders containers and sticky notes on top of the diagram.
@@ -18,6 +29,8 @@ import java.util.List;
  */
 public class OverlayPanel extends JPanel {
 
+    private static final Logger LOG = Logger.getInstance(OverlayPanel.class);
+    
     private DiagramMetadata metadata;
     private ContainerInfo selectedContainer;
     private StickyNoteInfo selectedNote;
@@ -25,6 +38,9 @@ public class OverlayPanel extends JPanel {
     private boolean isDragging;
     private boolean isResizing;
     private ResizeHandle resizeHandle;
+    
+    // Debug mode - set to true to show debug border
+    private static final boolean DEBUG_MODE = false;
 
     private static final int HANDLE_SIZE = 8;
     private static final int CONTAINER_ARC = 10;
@@ -39,12 +55,18 @@ public class OverlayPanel extends JPanel {
     public OverlayPanel() {
         setOpaque(false);
         setLayout(null);
+        setDoubleBuffered(true);
         setupMouseListeners();
+        LOG.info("OverlayPanel created");
     }
 
     public void setMetadata(DiagramMetadata metadata) {
         this.metadata = metadata;
         repaint();
+    }
+    
+    public DiagramMetadata getMetadata() {
+        return metadata;
     }
 
     private void setupMouseListeners() {
@@ -67,6 +89,18 @@ public class OverlayPanel extends JPanel {
             @Override
             public void mouseMoved(MouseEvent e) {
                 updateCursor(e);
+            }
+            
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                // Double-click to edit sticky note
+                if (e.getClickCount() == 2) {
+                    StickyNoteInfo note = findNoteAt(e.getPoint());
+                    if (note != null) {
+                        // TODO: Open edit dialog
+                        LOG.info("Double-clicked on note: " + note.getId());
+                    }
+                }
             }
         };
 
@@ -290,20 +324,30 @@ public class OverlayPanel extends JPanel {
         Graphics2D g2d = (Graphics2D) g.create();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-        // Debug: Draw border to show overlay is attached
-        g2d.setColor(new Color(0, 150, 255, 50));
-        g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
-                1, new float[]{5, 5}, 0));
-        g2d.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+        // Debug border (only in debug mode)
+        if (DEBUG_MODE) {
+            g2d.setColor(new Color(0, 150, 255, 50));
+            g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                    1, new float[]{5, 5}, 0));
+            g2d.drawRect(0, 0, getWidth() - 1, getHeight() - 1);
+        }
 
         if (metadata == null) {
-            // No metadata yet - show empty state
+            // No metadata yet - just be invisible
+            g2d.dispose();
+            return;
+        }
+
+        // Check if we have anything to draw
+        boolean hasElements = !metadata.getContainers().isEmpty() || !metadata.getNotes().isEmpty();
+        
+        if (!hasElements && DEBUG_MODE) {
+            // Show ready message only in debug mode
             g2d.setColor(new Color(100, 100, 100, 100));
             g2d.setFont(g2d.getFont().deriveFont(11f));
             g2d.drawString("Colorful Diagrams Ready - Add sticky notes or containers", 10, 30);
-            g2d.dispose();
-            return;
         }
 
         // Draw containers first (they're behind everything)
@@ -349,22 +393,25 @@ public class OverlayPanel extends JPanel {
         ));
 
         // Draw title bar
+        String title = container.getTitle() != null ? container.getTitle() : "Container";
         g2d.setColor(color);
-        g2d.fillRoundRect(bounds.x, bounds.y,
-                Math.min(bounds.width, g2d.getFontMetrics().stringWidth(container.getTitle()) + 20),
-                20, 5, 5);
+        int titleWidth = Math.min(bounds.width, g2d.getFontMetrics().stringWidth(title) + 20);
+        g2d.fillRoundRect(bounds.x, bounds.y, titleWidth, 20, 5, 5);
 
         // Draw title text
         g2d.setColor(DiagramColorApplicator.getContrastingTextColor(color));
         g2d.setFont(g2d.getFont().deriveFont(Font.BOLD, 11f));
-        g2d.drawString(container.getTitle() != null ? container.getTitle() : "",
-                bounds.x + 5, bounds.y + 14);
+        g2d.drawString(title, bounds.x + 5, bounds.y + 14);
     }
 
     private void drawStickyNote(Graphics2D g2d, StickyNoteInfo note) {
         Point pos = note.getPositionAsPoint();
         Dimension size = note.getSizeAsDimension();
         Color color = note.getAwtColor();
+        
+        if (color == null) {
+            color = new Color(0xFFEB3B); // Default yellow
+        }
 
         // Draw shadow
         g2d.setColor(new Color(0, 0, 0, 30));
@@ -423,5 +470,42 @@ public class OverlayPanel extends JPanel {
                 g2d.drawString(line.toString(), textX, textY);
             }
         }
+    }
+
+    /**
+     * Checks if overlay contains any elements worth rendering.
+     */
+    @Override
+    public boolean contains(int x, int y) {
+        // Only intercept mouse events when over an element
+        if (metadata == null) {
+            return false;
+        }
+        
+        Point p = new Point(x, y);
+        
+        // Check notes first (on top)
+        for (StickyNoteInfo note : metadata.getNotes()) {
+            Rectangle bounds = new Rectangle(
+                    note.getPositionAsPoint(),
+                    note.getSizeAsDimension()
+            );
+            // Expand bounds slightly for easier interaction
+            bounds.grow(HANDLE_SIZE, HANDLE_SIZE);
+            if (bounds.contains(p)) {
+                return true;
+            }
+        }
+        
+        // Check containers
+        for (ContainerInfo container : metadata.getContainers()) {
+            Rectangle bounds = container.getBoundsAsRectangle();
+            bounds.grow(HANDLE_SIZE, HANDLE_SIZE);
+            if (bounds.contains(p)) {
+                return true;
+            }
+        }
+        
+        return false;
     }
 }
