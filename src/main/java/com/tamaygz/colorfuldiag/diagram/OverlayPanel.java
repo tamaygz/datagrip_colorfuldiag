@@ -11,6 +11,8 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.KeyAdapter;
+import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
@@ -54,8 +56,20 @@ public class OverlayPanel extends JPanel {
     private Point drawingStart;
     private Rectangle drawingPreview;
     
+    // Hover tracking for visual feedback (learned from yFiles demos)
+    private ContainerInfo hoveredContainer;
+    private StickyNoteInfo hoveredNote;
+    
     // Callback for when metadata changes
     private Consumer<DiagramMetadata> onMetadataChanged;
+    
+    // Cached rendering hints for performance (learned from Swing best practices)
+    private static final Map<RenderingHints.Key, Object> RENDERING_HINTS = Map.of(
+        RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON,
+        RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON,
+        RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY,
+        RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE
+    );
     
     // Debug mode - set to true to show debug border
     private static final boolean DEBUG_MODE = false;
@@ -74,7 +88,9 @@ public class OverlayPanel extends JPanel {
         setOpaque(false);
         setLayout(null);
         setDoubleBuffered(true);
+        setFocusable(true); // Enable keyboard input
         setupMouseListeners();
+        setupKeyboardListeners();
         LOG.info("OverlayPanel created");
     }
     
@@ -148,6 +164,7 @@ public class OverlayPanel extends JPanel {
             @Override
             public void mouseMoved(MouseEvent e) {
                 updateCursor(e);
+                updateHoverState(e);
             }
             
             @Override
@@ -177,6 +194,150 @@ public class OverlayPanel extends JPanel {
 
         addMouseListener(mouseAdapter);
         addMouseMotionListener(mouseAdapter);
+    }
+    
+    /**
+     * Sets up keyboard listeners for Delete, Escape, and arrow key support.
+     * Inspired by yFiles demos that provide keyboard navigation.
+     */
+    private void setupKeyboardListeners() {
+        addKeyListener(new KeyAdapter() {
+            @Override
+            public void keyPressed(KeyEvent e) {
+                handleKeyPressed(e);
+            }
+        });
+    }
+    
+    private void handleKeyPressed(KeyEvent e) {
+        // Escape cancels drawing mode
+        if (e.getKeyCode() == KeyEvent.VK_ESCAPE) {
+            if (drawingMode != DrawingMode.NONE) {
+                setDrawingMode(DrawingMode.NONE);
+                e.consume();
+                return;
+            }
+            // Deselect
+            if (selectedContainer != null || selectedNote != null) {
+                selectedContainer = null;
+                selectedNote = null;
+                repaint();
+                e.consume();
+                return;
+            }
+        }
+        
+        // Delete removes selected item
+        if (e.getKeyCode() == KeyEvent.VK_DELETE || e.getKeyCode() == KeyEvent.VK_BACK_SPACE) {
+            if (selectedContainer != null && metadata != null) {
+                Rectangle oldBounds = selectedContainer.getBoundsAsRectangle();
+                metadata.removeContainer(selectedContainer.getId());
+                selectedContainer = null;
+                notifyMetadataChanged();
+                repaintArea(oldBounds);
+                e.consume();
+                return;
+            }
+            if (selectedNote != null && metadata != null) {
+                Rectangle oldBounds = new Rectangle(selectedNote.getPositionAsPoint(), selectedNote.getSizeAsDimension());
+                metadata.removeNote(selectedNote.getId());
+                selectedNote = null;
+                notifyMetadataChanged();
+                repaintArea(oldBounds);
+                e.consume();
+                return;
+            }
+        }
+        
+        // Arrow keys nudge selected item (with Shift for larger steps)
+        int nudgeAmount = e.isShiftDown() ? 10 : 1;
+        int dx = 0, dy = 0;
+        switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP -> dy = -nudgeAmount;
+            case KeyEvent.VK_DOWN -> dy = nudgeAmount;
+            case KeyEvent.VK_LEFT -> dx = -nudgeAmount;
+            case KeyEvent.VK_RIGHT -> dx = nudgeAmount;
+        }
+        
+        if ((dx != 0 || dy != 0) && metadata != null) {
+            if (selectedContainer != null) {
+                Rectangle oldBounds = selectedContainer.getBoundsAsRectangle();
+                moveContainer(selectedContainer, dx, dy);
+                notifyMetadataChanged();
+                repaintArea(oldBounds.union(selectedContainer.getBoundsAsRectangle()));
+                e.consume();
+            } else if (selectedNote != null) {
+                Rectangle oldBounds = new Rectangle(selectedNote.getPositionAsPoint(), selectedNote.getSizeAsDimension());
+                moveNote(selectedNote, dx, dy);
+                notifyMetadataChanged();
+                Rectangle newBounds = new Rectangle(selectedNote.getPositionAsPoint(), selectedNote.getSizeAsDimension());
+                repaintArea(oldBounds.union(newBounds));
+                e.consume();
+            }
+        }
+    }
+    
+    /**
+     * Updates hover state for visual feedback.
+     * Inspired by ItemHoverInputMode in yFiles demos.
+     */
+    private void updateHoverState(MouseEvent e) {
+        Point p = e.getPoint();
+        ContainerInfo newHoveredContainer = findContainerAt(p);
+        StickyNoteInfo newHoveredNote = findNoteAt(p);
+        
+        boolean needsRepaint = false;
+        Rectangle repaintRect = null;
+        
+        // Update container hover
+        if (newHoveredContainer != hoveredContainer) {
+            if (hoveredContainer != null) {
+                repaintRect = growRect(hoveredContainer.getBoundsAsRectangle(), HANDLE_SIZE);
+            }
+            if (newHoveredContainer != null) {
+                Rectangle newRect = growRect(newHoveredContainer.getBoundsAsRectangle(), HANDLE_SIZE);
+                repaintRect = repaintRect != null ? repaintRect.union(newRect) : newRect;
+            }
+            hoveredContainer = newHoveredContainer;
+            needsRepaint = true;
+        }
+        
+        // Update note hover
+        if (newHoveredNote != hoveredNote) {
+            if (hoveredNote != null) {
+                Rectangle noteRect = new Rectangle(hoveredNote.getPositionAsPoint(), hoveredNote.getSizeAsDimension());
+                Rectangle grown = growRect(noteRect, HANDLE_SIZE);
+                repaintRect = repaintRect != null ? repaintRect.union(grown) : grown;
+            }
+            if (newHoveredNote != null) {
+                Rectangle noteRect = new Rectangle(newHoveredNote.getPositionAsPoint(), newHoveredNote.getSizeAsDimension());
+                Rectangle newRect = growRect(noteRect, HANDLE_SIZE);
+                repaintRect = repaintRect != null ? repaintRect.union(newRect) : newRect;
+            }
+            hoveredNote = newHoveredNote;
+            needsRepaint = true;
+        }
+        
+        if (needsRepaint && repaintRect != null) {
+            repaintArea(repaintRect);
+        }
+    }
+    
+    /**
+     * Optimized repaint for a specific area (learned from Swing performance best practices).
+     */
+    private void repaintArea(Rectangle rect) {
+        if (rect != null) {
+            // Add padding for borders and shadows
+            repaint(rect.x - 5, rect.y - 5, rect.width + 15, rect.height + 15);
+        } else {
+            repaint();
+        }
+    }
+    
+    private Rectangle growRect(Rectangle rect, int amount) {
+        return new Rectangle(rect.x - amount, rect.y - amount, 
+                           rect.width + amount * 2, rect.height + amount * 2);
     }
     
     private void handleRightClick(MouseEvent e) {
@@ -691,9 +852,8 @@ public class OverlayPanel extends JPanel {
         super.paintComponent(g);
 
         Graphics2D g2d = (Graphics2D) g.create();
-        g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        // Apply cached rendering hints for performance
+        g2d.addRenderingHints(RENDERING_HINTS);
 
         // Debug border (only in debug mode)
         if (DEBUG_MODE) {
@@ -721,12 +881,12 @@ public class OverlayPanel extends JPanel {
 
         // Draw containers first (they're behind everything)
         for (ContainerInfo container : metadata.getContainers()) {
-            drawContainer(g2d, container);
+            drawContainer(g2d, container, container.equals(hoveredContainer));
         }
 
         // Draw sticky notes on top
         for (StickyNoteInfo note : metadata.getNotes()) {
-            drawStickyNote(g2d, note);
+            drawStickyNote(g2d, note, note.equals(hoveredNote));
         }
         
         // Draw table color legend (compact display of colored tables)
@@ -831,7 +991,7 @@ public class OverlayPanel extends JPanel {
         g2d.drawString(sizeText, drawingPreview.x + 5, drawingPreview.y + drawingPreview.height + 15);
     }
 
-    private void drawContainer(Graphics2D g2d, ContainerInfo container) {
+    private void drawContainer(Graphics2D g2d, ContainerInfo container, boolean isHovered) {
         Rectangle bounds = container.getBoundsAsRectangle();
         Color color = container.getAwtColor();
         if (color == null) {
@@ -839,9 +999,10 @@ public class OverlayPanel extends JPanel {
         }
 
         // Draw background with transparency
+        float alpha = isHovered ? CONTAINER_ALPHA * 1.5f : CONTAINER_ALPHA;
         Color bgColor = new Color(
                 color.getRed(), color.getGreen(), color.getBlue(),
-                (int) (255 * CONTAINER_ALPHA)
+                (int) (255 * Math.min(1.0f, alpha))
         );
         g2d.setColor(bgColor);
         g2d.fill(new RoundRectangle2D.Float(
@@ -849,10 +1010,12 @@ public class OverlayPanel extends JPanel {
                 CONTAINER_ARC, CONTAINER_ARC
         ));
 
-        // Draw border
+        // Draw border - highlighted when selected or hovered
         boolean isSelected = container.equals(selectedContainer);
-        g2d.setColor(isSelected ? color.darker() : color);
-        g2d.setStroke(new BasicStroke(isSelected ? 2 : 1,
+        Color borderColor = isSelected ? color.darker() : (isHovered ? color.brighter() : color);
+        float strokeWidth = isSelected ? 2.5f : (isHovered ? 1.5f : 1f);
+        g2d.setColor(borderColor);
+        g2d.setStroke(new BasicStroke(strokeWidth,
                 BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
                 1, new float[]{5, 3}, 0));
         g2d.draw(new RoundRectangle2D.Float(
@@ -870,9 +1033,35 @@ public class OverlayPanel extends JPanel {
         g2d.setColor(DiagramColorApplicator.getContrastingTextColor(color));
         g2d.setFont(g2d.getFont().deriveFont(Font.BOLD, 11f));
         g2d.drawString(title, bounds.x + 5, bounds.y + 14);
+        
+        // Draw resize handles when selected or hovered
+        if (isSelected || isHovered) {
+            drawResizeHandles(g2d, bounds, color);
+        }
+    }
+    
+    private void drawResizeHandles(Graphics2D g2d, Rectangle bounds, Color accentColor) {
+        int handleSize = 6;
+        g2d.setColor(accentColor.darker());
+        g2d.setStroke(new BasicStroke(1));
+        
+        // Corner handles
+        int[][] corners = {
+            {bounds.x - handleSize/2, bounds.y - handleSize/2}, // NW
+            {bounds.x + bounds.width - handleSize/2, bounds.y - handleSize/2}, // NE
+            {bounds.x - handleSize/2, bounds.y + bounds.height - handleSize/2}, // SW
+            {bounds.x + bounds.width - handleSize/2, bounds.y + bounds.height - handleSize/2} // SE
+        };
+        
+        for (int[] corner : corners) {
+            g2d.setColor(Color.WHITE);
+            g2d.fillRect(corner[0], corner[1], handleSize, handleSize);
+            g2d.setColor(accentColor.darker());
+            g2d.drawRect(corner[0], corner[1], handleSize, handleSize);
+        }
     }
 
-    private void drawStickyNote(Graphics2D g2d, StickyNoteInfo note) {
+    private void drawStickyNote(Graphics2D g2d, StickyNoteInfo note, boolean isHovered) {
         Point pos = note.getPositionAsPoint();
         Dimension size = note.getSizeAsDimension();
         Color color = note.getAwtColor();
@@ -881,9 +1070,10 @@ public class OverlayPanel extends JPanel {
             color = new Color(0xFFEB3B); // Default yellow
         }
 
-        // Draw shadow
-        g2d.setColor(new Color(0, 0, 0, 30));
-        g2d.fillRoundRect(pos.x + 3, pos.y + 3, size.width, size.height, NOTE_ARC, NOTE_ARC);
+        // Draw shadow (larger when hovered - lift effect)
+        int shadowOffset = isHovered ? 5 : 3;
+        g2d.setColor(new Color(0, 0, 0, isHovered ? 50 : 30));
+        g2d.fillRoundRect(pos.x + shadowOffset, pos.y + shadowOffset, size.width, size.height, NOTE_ARC, NOTE_ARC);
 
         // Draw background
         Color bgColor = new Color(
@@ -893,10 +1083,12 @@ public class OverlayPanel extends JPanel {
         g2d.setColor(bgColor);
         g2d.fillRoundRect(pos.x, pos.y, size.width, size.height, NOTE_ARC, NOTE_ARC);
 
-        // Draw border
+        // Draw border - highlighted when selected or hovered
         boolean isSelected = note.equals(selectedNote);
-        g2d.setColor(isSelected ? color.darker().darker() : color.darker());
-        g2d.setStroke(new BasicStroke(isSelected ? 2 : 1));
+        Color borderColor = isSelected ? color.darker().darker() : (isHovered ? color.darker() : color.darker());
+        float strokeWidth = isSelected ? 2.5f : (isHovered ? 1.5f : 1f);
+        g2d.setColor(borderColor);
+        g2d.setStroke(new BasicStroke(strokeWidth));
         g2d.drawRoundRect(pos.x, pos.y, size.width, size.height, NOTE_ARC, NOTE_ARC);
 
         // Draw fold corner
