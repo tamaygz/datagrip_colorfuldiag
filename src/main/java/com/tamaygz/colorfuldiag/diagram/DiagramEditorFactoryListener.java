@@ -66,9 +66,11 @@ public class DiagramEditorFactoryListener implements EditorFactoryListener {
                     
                     LOG.info("Found potential diagram editor: " + selectedEditor.getClass().getName());
                     
-                    // Use SwingUtilities to ensure we're on EDT
+                    // Directly attach overlay using the editor we already have
+                    final FileEditor editor = selectedEditor;
+                    final VirtualFile vf = file;
                     SwingUtilities.invokeLater(() -> {
-                        DiagramEditorListener.reattachOverlay(project, file.getPath());
+                        DiagramEditorListener.attachOverlayToEditor(project, vf, editor);
                     });
                 }
             }

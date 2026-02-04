@@ -1,5 +1,14 @@
 package com.tamaygz.colorfuldiag.actions;
 
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
+
+import javax.swing.Icon;
+
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
+
 import com.intellij.diagram.DiagramBuilder;
 import com.intellij.diagram.DiagramDataKeys;
 import com.intellij.diagram.DiagramDataModel;
@@ -8,20 +17,21 @@ import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
+import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.vfs.VirtualFile;
+import com.tamaygz.colorfuldiag.diagram.DiagramEditorListener;
+import com.tamaygz.colorfuldiag.diagram.OverlayPanel;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.persistence.DiagramMetadataService;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-
-import javax.swing.*;
-import java.util.Collection;
-import java.util.Collections;
 
 /**
  * Base class for all diagram-related actions.
  * Provides common functionality for accessing diagram context.
+ * 
+ * Actions can be invoked from:
+ * 1. Diagram context menu (has DiagramBuilder context)
+ * 2. Tool window toolbar (no DiagramBuilder, needs to find active diagram)
  */
 public abstract class DiagramActionBase extends AnAction {
 
@@ -85,16 +95,43 @@ public abstract class DiagramActionBase extends AnAction {
      */
     @Nullable
     protected VirtualFile getDiagramFile(@NotNull AnActionEvent e) {
-        return e.getData(CommonDataKeys.VIRTUAL_FILE);
+        // First try from event context
+        VirtualFile file = e.getData(CommonDataKeys.VIRTUAL_FILE);
+        if (file != null) {
+            return file;
+        }
+        
+        // Fallback: try to get from currently selected editor
+        Project project = e.getProject();
+        if (project != null) {
+            FileEditorManager editorManager = FileEditorManager.getInstance(project);
+            VirtualFile[] selectedFiles = editorManager.getSelectedFiles();
+            if (selectedFiles.length > 0) {
+                return selectedFiles[0];
+            }
+        }
+        
+        return null;
     }
 
     /**
      * Gets the diagram path for metadata storage.
+     * Falls back to any active overlay path if no direct path available.
      */
     @Nullable
     protected String getDiagramPath(@NotNull AnActionEvent e) {
         VirtualFile file = getDiagramFile(e);
-        return file != null ? file.getPath() : null;
+        if (file != null) {
+            return file.getPath();
+        }
+        
+        // Fallback: get path from any active overlay
+        Map<String, OverlayPanel> overlays = DiagramEditorListener.getAllOverlayPanels();
+        if (!overlays.isEmpty()) {
+            return overlays.keySet().iterator().next();
+        }
+        
+        return null;
     }
 
     /**
@@ -108,17 +145,48 @@ public abstract class DiagramActionBase extends AnAction {
 
     /**
      * Gets or creates metadata for the current diagram.
+     * Can work from overlay context when DiagramBuilder isn't available.
      */
     @Nullable
     protected DiagramMetadata getMetadata(@NotNull AnActionEvent e) {
-        DiagramMetadataService service = getMetadataService(e);
+        // First try to get from overlay directly (faster)
         String diagramPath = getDiagramPath(e);
-
+        if (diagramPath != null) {
+            OverlayPanel overlay = DiagramEditorListener.getOverlayPanel(diagramPath);
+            if (overlay != null && overlay.getMetadata() != null) {
+                return overlay.getMetadata();
+            }
+        }
+        
+        // Fallback: load from service
+        DiagramMetadataService service = getMetadataService(e);
         if (service == null || diagramPath == null) {
+            // Last resort: try any overlay
+            OverlayPanel anyOverlay = DiagramEditorListener.getAnyOverlayPanel();
+            if (anyOverlay != null) {
+                return anyOverlay.getMetadata();
+            }
             return null;
         }
 
         return service.getOrCreateMetadata(diagramPath);
+    }
+    
+    /**
+     * Gets the active overlay panel for the current context.
+     */
+    @Nullable
+    protected OverlayPanel getActiveOverlay(@NotNull AnActionEvent e) {
+        String diagramPath = getDiagramPath(e);
+        if (diagramPath != null) {
+            OverlayPanel overlay = DiagramEditorListener.getOverlayPanel(diagramPath);
+            if (overlay != null) {
+                return overlay;
+            }
+        }
+        
+        // Fallback to any available overlay
+        return DiagramEditorListener.getAnyOverlayPanel();
     }
 
     /**
@@ -136,7 +204,14 @@ public abstract class DiagramActionBase extends AnAction {
             );
             
             // Update the overlay panel with the new metadata
-            com.tamaygz.colorfuldiag.diagram.DiagramEditorListener.updateOverlayMetadata(diagramPath, metadata);
+            DiagramEditorListener.updateOverlayMetadata(diagramPath, metadata);
+        }
+        
+        // Also update any active overlay directly
+        OverlayPanel overlay = getActiveOverlay(e);
+        if (overlay != null) {
+            overlay.setMetadata(metadata);
+            overlay.repaint();
         }
 
         // Ensure overlay is attached to the diagram
@@ -157,6 +232,12 @@ public abstract class DiagramActionBase extends AnAction {
                 // Ignore refresh errors
             }
         }
+        
+        // Also refresh overlay
+        OverlayPanel overlay = getActiveOverlay(e);
+        if (overlay != null) {
+            overlay.repaint();
+        }
     }
 
     /**
@@ -172,10 +253,24 @@ public abstract class DiagramActionBase extends AnAction {
         return null;
     }
 
+    /**
+     * Checks if action should be enabled.
+     * Enables when we have a diagram builder OR an active overlay.
+     */
     @Override
     public void update(@NotNull AnActionEvent e) {
-        // By default, enable action only when we have a diagram builder
         DiagramBuilder builder = getDiagramBuilder(e);
-        e.getPresentation().setEnabledAndVisible(builder != null);
+        boolean hasOverlay = DiagramEditorListener.getAnyOverlayPanel() != null;
+        
+        // Enable if we have a diagram builder OR an active overlay
+        e.getPresentation().setEnabledAndVisible(builder != null || hasOverlay);
+    }
+    
+    /**
+     * Checks if the action requires selected nodes to be enabled.
+     * Override in subclasses that need selection.
+     */
+    protected boolean requiresSelection() {
+        return false;
     }
 }

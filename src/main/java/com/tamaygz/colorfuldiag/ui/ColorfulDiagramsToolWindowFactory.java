@@ -2,6 +2,7 @@ package com.tamaygz.colorfuldiag.ui;
 
 import java.awt.Component;
 import java.awt.Font;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -32,7 +33,6 @@ import com.tamaygz.colorfuldiag.diagram.DiagramEditorFactoryListener;
 import com.tamaygz.colorfuldiag.diagram.DiagramEditorListener;
 import com.tamaygz.colorfuldiag.diagram.OverlayPanel;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
-import com.tamaygz.colorfuldiag.persistence.DiagramMetadataService;
 
 /**
  * Tool window factory for the Colorful Diagrams toolbox.
@@ -144,8 +144,40 @@ public class ColorfulDiagramsToolWindowFactory implements ToolWindowFactory {
             String overlayStatus = "Overlay: Not attached";
             String metadataStatus = "Metadata: -";
             String detailsStatus = "";
-
-            if (selectedFiles.length > 0) {
+            
+            // First check if we have any overlay at all
+            var allOverlays = DiagramEditorListener.getAllOverlayPanels();
+            if (!allOverlays.isEmpty()) {
+                // We have overlays - find the relevant one
+                for (Map.Entry<String, OverlayPanel> entry : allOverlays.entrySet()) {
+                    String path = entry.getKey();
+                    OverlayPanel overlay = entry.getValue();
+                    
+                    // Extract diagram name from path
+                    String name = path;
+                    int lastSlash = path.lastIndexOf('/');
+                    int lastBackslash = path.lastIndexOf('\\');
+                    int lastDot = Math.max(path.lastIndexOf('.'), Math.max(lastSlash, lastBackslash));
+                    if (lastDot > 0) {
+                        name = path.substring(Math.max(lastSlash, lastBackslash) + 1);
+                    }
+                    
+                    diagramStatus = "Diagram: " + name;
+                    overlayStatus = "Overlay: ✓ Attached";
+                    
+                    // Get metadata from overlay
+                    DiagramMetadata metadata = overlay.getMetadata();
+                    if (metadata != null) {
+                        int noteCount = metadata.getNotes().size();
+                        int containerCount = metadata.getContainers().size();
+                        int colorCount = metadata.getTables().size();
+                        metadataStatus = String.format("Notes: %d | Containers: %d | Colors: %d",
+                                noteCount, containerCount, colorCount);
+                    }
+                    break; // Use first overlay found
+                }
+            } else if (selectedFiles.length > 0) {
+                // No overlays yet, show selected file info
                 VirtualFile file = selectedFiles[0];
                 FileEditor editor = editorManager.getSelectedEditor(file);
                 
@@ -153,29 +185,12 @@ public class ColorfulDiagramsToolWindowFactory implements ToolWindowFactory {
                     String editorClass = editor.getClass().getSimpleName();
                     diagramStatus = "Editor: " + file.getName();
                     detailsStatus = "Type: " + editorClass;
-
-                    // Check for overlay
-                    OverlayPanel overlay = DiagramEditorListener.getOverlayPanel(file.getPath());
-                    if (overlay != null) {
-                        overlayStatus = "Overlay: ✓ Attached";
-                        
-                        // Get metadata info
-                        DiagramMetadataService service = DiagramMetadataService.getInstance(project);
-                        DiagramMetadata metadata = service.loadMetadata(file);
-                        int noteCount = metadata.getNotes().size();
-                        int containerCount = metadata.getContainers().size();
-                        int colorCount = metadata.getTables().size();
-                        metadataStatus = String.format("Notes: %d | Containers: %d | Colors: %d",
-                                noteCount, containerCount, colorCount);
-                    } else {
-                        overlayStatus = "Overlay: ✗ Not attached";
-                        
-                        // Check if it's a diagram editor
-                        String className = editorClass.toLowerCase();
-                        if (className.contains("diagram") || className.contains("graph") ||
-                            className.contains("uml") || className.contains("database")) {
-                            overlayStatus += " (is diagram)";
-                        }
+                    
+                    // Check if it looks like a diagram
+                    String className = editorClass.toLowerCase();
+                    if (className.contains("diagram") || className.contains("graph") ||
+                        className.contains("uml") || className.contains("database")) {
+                        overlayStatus = "Overlay: Pending...";
                     }
                 }
             }

@@ -519,32 +519,131 @@ public class DiagramEditorListener implements FileEditorManagerListener {
      */
     @Nullable
     public static OverlayPanel getOverlayPanel(String diagramPath) {
-        return overlayPanels.get(diagramPath);
+        // Try exact match first
+        OverlayPanel panel = overlayPanels.get(diagramPath);
+        if (panel != null) {
+            return panel;
+        }
+        
+        // Try partial match - the path format can vary
+        for (Map.Entry<String, OverlayPanel> entry : overlayPanels.entrySet()) {
+            String key = entry.getKey();
+            // Check if paths refer to the same diagram (may differ in format)
+            if (pathsMatch(key, diagramPath)) {
+                return entry.getValue();
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Gets any available overlay panel (for use when exact path isn't known).
+     */
+    @Nullable
+    public static OverlayPanel getAnyOverlayPanel() {
+        if (!overlayPanels.isEmpty()) {
+            return overlayPanels.values().iterator().next();
+        }
+        return null;
+    }
+    
+    /**
+     * Gets all overlay panels.
+     */
+    public static Map<String, OverlayPanel> getAllOverlayPanels() {
+        return new ConcurrentHashMap<>(overlayPanels);
+    }
+    
+    /**
+     * Check if two paths refer to the same diagram.
+     */
+    private static boolean pathsMatch(String path1, String path2) {
+        if (path1 == null || path2 == null) return false;
+        if (path1.equals(path2)) return true;
+        
+        // Normalize paths for comparison
+        String norm1 = normalizePath(path1);
+        String norm2 = normalizePath(path2);
+        return norm1.equals(norm2);
+    }
+    
+    /**
+     * Normalize a path for comparison.
+     */
+    private static String normalizePath(String path) {
+        // Replace various separators and normalize
+        return path.toLowerCase()
+                .replace("\\", "/")
+                .replace(":", "_")
+                .replace("//", "/");
     }
 
     /**
      * Forces reattachment of overlay for a diagram.
      */
     public static void reattachOverlay(Project project, String diagramPath) {
-        JComponent component = editorComponents.get(diagramPath);
-        if (component == null) {
-            LOG.warn("No component found for: " + diagramPath);
-            return;
-        }
-
-        // Remove existing overlay
+        // Remove existing overlay first
         OverlayPanel existingPanel = overlayPanels.remove(diagramPath);
         if (existingPanel != null && existingPanel.getParent() != null) {
             existingPanel.getParent().remove(existingPanel);
         }
 
-        // Get the file
+        // Get the file and editor directly
         FileEditorManager editorManager = FileEditorManager.getInstance(project);
         for (VirtualFile file : editorManager.getOpenFiles()) {
             if (file.getPath().equals(diagramPath)) {
-                new DiagramEditorListener().attachOverlayPanel(project, file, component);
-                break;
+                FileEditor fileEditor = editorManager.getSelectedEditor(file);
+                if (fileEditor == null) {
+                    LOG.warn("No file editor for: " + diagramPath);
+                    return;
+                }
+                
+                JComponent component = fileEditor.getComponent();
+                if (component == null) {
+                    LOG.warn("No component for editor: " + diagramPath);
+                    return;
+                }
+                
+                // Store the component for future use
+                editorComponents.put(diagramPath, component);
+                LOG.info("Reattaching overlay for: " + file.getName());
+                
+                // Attach with delay to ensure component is ready
+                DiagramEditorListener listener = new DiagramEditorListener();
+                listener.attachOverlayWithDelay(project, file, component, 0);
+                return;
             }
         }
+        
+        LOG.warn("File not found in open editors: " + diagramPath);
+    }
+    
+    /**
+     * Directly attaches overlay to a FileEditor.
+     */
+    public static void attachOverlayToEditor(Project project, VirtualFile file, FileEditor editor) {
+        if (project == null || project.isDisposed() || editor == null) {
+            return;
+        }
+        
+        JComponent component = editor.getComponent();
+        if (component == null) {
+            LOG.warn("Editor component is null for: " + file.getName());
+            return;
+        }
+        
+        String filePath = file.getPath();
+        
+        // Store component
+        editorComponents.put(filePath, component);
+        
+        LOG.info("Direct overlay attachment for: " + file.getName());
+        
+        // Attach with delay
+        DiagramEditorListener listener = new DiagramEditorListener();
+        SwingUtilities.invokeLater(() -> {
+            listener.attachOverlayWithDelay(project, file, component, 0);
+        });
     }
 }
