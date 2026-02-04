@@ -125,6 +125,7 @@ public abstract class DiagramActionBase extends AnAction {
      * Saves metadata for the current diagram.
      */
     protected void saveMetadata(@NotNull AnActionEvent e, @NotNull DiagramMetadata metadata) {
+        Project project = e.getProject();
         DiagramMetadataService service = getMetadataService(e);
         String diagramPath = getDiagramPath(e);
 
@@ -136,6 +137,11 @@ public abstract class DiagramActionBase extends AnAction {
             
             // Update the overlay panel with the new metadata
             com.tamaygz.colorfuldiag.diagram.DiagramEditorListener.updateOverlayMetadata(diagramPath, metadata);
+        }
+
+        // Ensure overlay is attached to the diagram
+        if (project != null) {
+            com.tamaygz.colorfuldiag.diagram.DiagramEditorFactoryListener.tryAttachOverlayToCurrentDiagram(project);
         }
     }
 

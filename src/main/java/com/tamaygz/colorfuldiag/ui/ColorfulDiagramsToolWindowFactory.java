@@ -35,6 +35,9 @@ public class ColorfulDiagramsToolWindowFactory implements ToolWindowFactory {
                 false // false = vertical layout, true = horizontal
         );
 
+        // Set the target component for toolbar actions to use proper UI context
+        actionToolbar.setTargetComponent(panel);
+
         // Set the toolbar in the tool window
         panel.setToolbar(actionToolbar.getComponent());
 
