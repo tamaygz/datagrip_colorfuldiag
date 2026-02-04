@@ -11,17 +11,27 @@ import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.RenderingHints;
+import java.awt.event.ActionEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
 import java.util.List;
+import java.util.function.Consumer;
 
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
+import javax.swing.SwingUtilities;
 
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.project.Project;
+import com.intellij.ui.ColorChooserService;
 import com.tamaygz.colorfuldiag.model.ContainerInfo;
 import com.tamaygz.colorfuldiag.model.DiagramMetadata;
 import com.tamaygz.colorfuldiag.model.StickyNoteInfo;
+import com.tamaygz.colorfuldiag.services.DiagramMetadataService;
+import com.tamaygz.colorfuldiag.ui.QuickColorPickerPopup;
+import com.tamaygz.colorfuldiag.ui.RenameContainerDialog;
 
 /**
  * Overlay panel that renders containers and sticky notes on top of the diagram.
@@ -32,12 +42,20 @@ public class OverlayPanel extends JPanel {
     private static final Logger LOG = Logger.getInstance(OverlayPanel.class);
     
     private DiagramMetadata metadata;
+    private Project project;
+    private String diagramPath;
     private ContainerInfo selectedContainer;
     private StickyNoteInfo selectedNote;
     private Point dragStart;
     private boolean isDragging;
     private boolean isResizing;
     private ResizeHandle resizeHandle;
+    private DrawingMode drawingMode = DrawingMode.NONE;
+    private Point drawingStart;
+    private Rectangle drawingPreview;
+    
+    // Callback for when metadata changes
+    private Consumer<DiagramMetadata> onMetadataChanged;
     
     // Debug mode - set to true to show debug border
     private static final boolean DEBUG_MODE = false;
@@ -59,6 +77,43 @@ public class OverlayPanel extends JPanel {
         setupMouseListeners();
         LOG.info("OverlayPanel created");
     }
+    
+    public void setProject(Project project) {
+        this.project = project;
+    }
+    
+    public void setDiagramPath(String path) {
+        this.diagramPath = path;
+    }
+    
+    public void setDrawingMode(DrawingMode mode) {
+        this.drawingMode = mode;
+        drawingPreview = null;
+        if (mode != DrawingMode.NONE) {
+            setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+        } else {
+            setCursor(Cursor.getDefaultCursor());
+        }
+        repaint();
+    }
+    
+    public DrawingMode getDrawingMode() {
+        return drawingMode;
+    }
+    
+    public void setOnMetadataChanged(Consumer<DiagramMetadata> callback) {
+        this.onMetadataChanged = callback;
+    }
+    
+    private void notifyMetadataChanged() {
+        if (onMetadataChanged != null && metadata != null) {
+            onMetadataChanged.accept(metadata);
+        }
+        // Also save via service if project available
+        if (project != null && diagramPath != null && metadata != null) {
+            DiagramMetadataService.getInstance(project).saveMetadata(diagramPath, metadata);
+        }
+    }
 
     public void setMetadata(DiagramMetadata metadata) {
         this.metadata = metadata;
@@ -73,7 +128,11 @@ public class OverlayPanel extends JPanel {
         MouseAdapter mouseAdapter = new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
-                handleMousePressed(e);
+                if (SwingUtilities.isRightMouseButton(e)) {
+                    handleRightClick(e);
+                } else {
+                    handleMousePressed(e);
+                }
             }
 
             @Override
@@ -93,12 +152,24 @@ public class OverlayPanel extends JPanel {
             
             @Override
             public void mouseClicked(MouseEvent e) {
-                // Double-click to edit sticky note
-                if (e.getClickCount() == 2) {
+                // Double-click to edit sticky note or rename container
+                if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
                     StickyNoteInfo note = findNoteAt(e.getPoint());
                     if (note != null) {
-                        // TODO: Open edit dialog
-                        LOG.info("Double-clicked on note: " + note.getId());
+                        showEditNoteDialog(note);
+                        return;
+                    }
+                    ContainerInfo container = findContainerAt(e.getPoint());
+                    if (container != null) {
+                        showRenameContainerDialog(container);
+                        return;
+                    }
+                }
+                // Single left click on container title bar shows color picker
+                else if (e.getClickCount() == 1 && SwingUtilities.isLeftMouseButton(e)) {
+                    ContainerInfo container = findContainerAt(e.getPoint());
+                    if (container != null && isOnContainerTitleBar(container, e.getPoint())) {
+                        showQuickColorPicker(container, e);
                     }
                 }
             }
@@ -107,10 +178,252 @@ public class OverlayPanel extends JPanel {
         addMouseListener(mouseAdapter);
         addMouseMotionListener(mouseAdapter);
     }
+    
+    private void handleRightClick(MouseEvent e) {
+        Point p = e.getPoint();
+        
+        // Check for sticky note
+        StickyNoteInfo note = findNoteAt(p);
+        if (note != null) {
+            showNoteContextMenu(note, e);
+            return;
+        }
+        
+        // Check for container
+        ContainerInfo container = findContainerAt(p);
+        if (container != null) {
+            showContainerContextMenu(container, e);
+            return;
+        }
+        
+        // Show canvas context menu
+        showCanvasContextMenu(e);
+    }
+    
+    private void showCanvasContextMenu(MouseEvent e) {
+        JPopupMenu menu = new JPopupMenu();
+        
+        JMenuItem createContainer = new JMenuItem("Create Container Here");
+        createContainer.addActionListener(ev -> {
+            createContainerAt(e.getPoint());
+        });
+        menu.add(createContainer);
+        
+        JMenuItem createNote = new JMenuItem("Add Sticky Note Here");
+        createNote.addActionListener(ev -> {
+            createStickyNoteAt(e.getPoint());
+        });
+        menu.add(createNote);
+        
+        menu.addSeparator();
+        
+        JMenuItem drawContainer = new JMenuItem("Draw Container...");
+        drawContainer.addActionListener(ev -> {
+            setDrawingMode(DrawingMode.CONTAINER);
+        });
+        menu.add(drawContainer);
+        
+        JMenuItem drawNote = new JMenuItem("Draw Sticky Note...");
+        drawNote.addActionListener(ev -> {
+            setDrawingMode(DrawingMode.STICKY_NOTE);
+        });
+        menu.add(drawNote);
+        
+        menu.show(this, e.getX(), e.getY());
+    }
+    
+    private void showContainerContextMenu(ContainerInfo container, MouseEvent e) {
+        JPopupMenu menu = new JPopupMenu();
+        
+        JMenuItem rename = new JMenuItem("Rename Container...");
+        rename.addActionListener(ev -> showRenameContainerDialog(container));
+        menu.add(rename);
+        
+        JMenuItem changeColor = new JMenuItem("Change Color...");
+        changeColor.addActionListener(ev -> showColorChooser(container));
+        menu.add(changeColor);
+        
+        menu.addSeparator();
+        
+        JMenuItem moveToFront = new JMenuItem("Bring to Front");
+        moveToFront.addActionListener(ev -> {
+            if (metadata != null) {
+                metadata.getContainers().remove(container);
+                metadata.getContainers().add(container);
+                notifyMetadataChanged();
+                repaint();
+            }
+        });
+        menu.add(moveToFront);
+        
+        JMenuItem moveToBack = new JMenuItem("Send to Back");
+        moveToBack.addActionListener(ev -> {
+            if (metadata != null) {
+                metadata.getContainers().remove(container);
+                metadata.getContainers().add(0, container);
+                notifyMetadataChanged();
+                repaint();
+            }
+        });
+        menu.add(moveToBack);
+        
+        menu.addSeparator();
+        
+        JMenuItem delete = new JMenuItem("Delete Container");
+        delete.addActionListener(ev -> {
+            if (metadata != null) {
+                metadata.getContainers().remove(container);
+                selectedContainer = null;
+                notifyMetadataChanged();
+                repaint();
+            }
+        });
+        menu.add(delete);
+        
+        menu.show(this, e.getX(), e.getY());
+    }
+    
+    private void showNoteContextMenu(StickyNoteInfo note, MouseEvent e) {
+        JPopupMenu menu = new JPopupMenu();
+        
+        JMenuItem edit = new JMenuItem("Edit Note...");
+        edit.addActionListener(ev -> showEditNoteDialog(note));
+        menu.add(edit);
+        
+        JMenuItem changeColor = new JMenuItem("Change Color...");
+        changeColor.addActionListener(ev -> showNoteColorChooser(note));
+        menu.add(changeColor);
+        
+        menu.addSeparator();
+        
+        JMenuItem moveToFront = new JMenuItem("Bring to Front");
+        moveToFront.addActionListener(ev -> {
+            if (metadata != null) {
+                metadata.getNotes().remove(note);
+                metadata.getNotes().add(note);
+                notifyMetadataChanged();
+                repaint();
+            }
+        });
+        menu.add(moveToFront);
+        
+        menu.addSeparator();
+        
+        JMenuItem delete = new JMenuItem("Delete Note");
+        delete.addActionListener(ev -> {
+            if (metadata != null) {
+                metadata.getNotes().remove(note);
+                selectedNote = null;
+                notifyMetadataChanged();
+                repaint();
+            }
+        });
+        menu.add(delete);
+        
+        menu.show(this, e.getX(), e.getY());
+    }
+    
+    private void showQuickColorPicker(ContainerInfo container, MouseEvent e) {
+        if (project == null) return;
+        QuickColorPickerPopup popup = new QuickColorPickerPopup(project, container, color -> {
+            container.setColor(color);
+            notifyMetadataChanged();
+            repaint();
+        });
+        popup.show(this, e.getX(), e.getY());
+    }
+    
+    private void showRenameContainerDialog(ContainerInfo container) {
+        if (project == null) return;
+        RenameContainerDialog dialog = new RenameContainerDialog(project, container.getTitle());
+        if (dialog.showAndGet()) {
+            container.setTitle(dialog.getNewName());
+            notifyMetadataChanged();
+            repaint();
+        }
+    }
+    
+    private void showColorChooser(ContainerInfo container) {
+        if (project == null) return;
+        Color current = container.getAwtColor();
+        Color newColor = ColorChooserService.getInstance().showDialog(
+            null, project, "Choose Container Color",
+            current != null ? current : new Color(0x45B7D1),
+            true, null, true
+        );
+        if (newColor != null) {
+            container.setColor(newColor);
+            notifyMetadataChanged();
+            repaint();
+        }
+    }
+    
+    private void showEditNoteDialog(StickyNoteInfo note) {
+        // Simple edit dialog for note text
+        String newText = javax.swing.JOptionPane.showInputDialog(
+            this, "Edit sticky note text:", note.getText()
+        );
+        if (newText != null) {
+            note.setText(newText);
+            notifyMetadataChanged();
+            repaint();
+        }
+    }
+    
+    private void showNoteColorChooser(StickyNoteInfo note) {
+        if (project == null) return;
+        Color current = note.getAwtColor();
+        Color newColor = ColorChooserService.getInstance().showDialog(
+            null, project, "Choose Note Color",
+            current != null ? current : new Color(0xFFEB3B),
+            true, null, true
+        );
+        if (newColor != null) {
+            note.setColor(newColor);
+            notifyMetadataChanged();
+            repaint();
+        }
+    }
+    
+    private boolean isOnContainerTitleBar(ContainerInfo container, Point p) {
+        Rectangle bounds = container.getBoundsAsRectangle();
+        Rectangle titleBar = new Rectangle(bounds.x, bounds.y, bounds.width, 20);
+        return titleBar.contains(p);
+    }
+    
+    private void createContainerAt(Point p) {
+        if (metadata == null) return;
+        ContainerInfo container = new ContainerInfo(
+            "Container " + (metadata.getContainers().size() + 1),
+            new int[]{p.x - 75, p.y - 50, 150, 100}
+        );
+        metadata.getContainers().add(container);
+        notifyMetadataChanged();
+        repaint();
+    }
+    
+    private void createStickyNoteAt(Point p) {
+        if (metadata == null) return;
+        StickyNoteInfo note = new StickyNoteInfo(
+            new int[]{p.x - 60, p.y - 40},
+            new int[]{120, 80},
+            "New note"
+        );
+        metadata.getNotes().add(note);
+        notifyMetadataChanged();
+        repaint();
+    }
 
     private void handleMousePressed(MouseEvent e) {
         Point p = e.getPoint();
         dragStart = p;
+        
+        // Handle drawing mode
+        if (drawingMode != DrawingMode.NONE) {
+            drawingStart = p;
+            drawingPreview = new Rectangle(p.x, p.y, 0, 0);
+            return;
+        }
 
         // Check for sticky note selection first (they're on top)
         selectedNote = findNoteAt(p);
@@ -140,16 +453,69 @@ public class OverlayPanel extends JPanel {
     }
 
     private void handleMouseReleased(MouseEvent e) {
+        // Complete drawing mode
+        if (drawingMode != DrawingMode.NONE && drawingStart != null && drawingPreview != null) {
+            completeDrawing();
+        }
+        
+        // Save metadata after drag/resize operations
+        if ((isDragging || isResizing) && metadata != null) {
+            notifyMetadataChanged();
+        }
+        
         isDragging = false;
         isResizing = false;
         resizeHandle = ResizeHandle.NONE;
         dragStart = null;
+        drawingStart = null;
+        drawingPreview = null;
+    }
+    
+    private void completeDrawing() {
+        if (drawingPreview == null || drawingPreview.width < 20 || drawingPreview.height < 20) {
+            // Too small, cancel
+            setDrawingMode(DrawingMode.NONE);
+            return;
+        }
+        
+        if (metadata == null) return;
+        
+        if (drawingMode == DrawingMode.CONTAINER) {
+            ContainerInfo container = new ContainerInfo(
+                "Container " + (metadata.getContainers().size() + 1),
+                new int[]{drawingPreview.x, drawingPreview.y, drawingPreview.width, drawingPreview.height}
+            );
+            metadata.getContainers().add(container);
+        } else if (drawingMode == DrawingMode.STICKY_NOTE) {
+            StickyNoteInfo note = new StickyNoteInfo(
+                new int[]{drawingPreview.x, drawingPreview.y},
+                new int[]{drawingPreview.width, drawingPreview.height},
+                "New note"
+            );
+            metadata.getNotes().add(note);
+        }
+        
+        notifyMetadataChanged();
+        setDrawingMode(DrawingMode.NONE);
+        repaint();
     }
 
     private void handleMouseDragged(MouseEvent e) {
         if (dragStart == null) return;
 
         Point p = e.getPoint();
+        
+        // Handle drawing mode
+        if (drawingMode != DrawingMode.NONE && drawingStart != null) {
+            int x = Math.min(drawingStart.x, p.x);
+            int y = Math.min(drawingStart.y, p.y);
+            int w = Math.abs(p.x - drawingStart.x);
+            int h = Math.abs(p.y - drawingStart.y);
+            drawingPreview = new Rectangle(x, y, w, h);
+            repaint();
+            return;
+        }
+        
         int dx = p.x - dragStart.x;
         int dy = p.y - dragStart.y;
 
@@ -172,6 +538,12 @@ public class OverlayPanel extends JPanel {
     }
 
     private void updateCursor(MouseEvent e) {
+        // Don't change cursor in drawing mode
+        if (drawingMode != DrawingMode.NONE) {
+            setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+            return;
+        }
+        
         Point p = e.getPoint();
 
         StickyNoteInfo note = findNoteAt(p);
@@ -359,8 +731,38 @@ public class OverlayPanel extends JPanel {
         for (StickyNoteInfo note : metadata.getNotes()) {
             drawStickyNote(g2d, note);
         }
+        
+        // Draw drawing preview
+        if (drawingPreview != null && drawingMode != DrawingMode.NONE) {
+            drawDrawingPreview(g2d);
+        }
 
         g2d.dispose();
+    }
+    
+    private void drawDrawingPreview(Graphics2D g2d) {
+        Color previewColor = drawingMode == DrawingMode.CONTAINER 
+            ? new Color(0x45B7D1)
+            : new Color(0xFFEB3B);
+        
+        // Draw semi-transparent fill
+        g2d.setColor(new Color(
+            previewColor.getRed(), previewColor.getGreen(), previewColor.getBlue(), 50
+        ));
+        g2d.fillRect(drawingPreview.x, drawingPreview.y, 
+                     drawingPreview.width, drawingPreview.height);
+        
+        // Draw dashed border
+        g2d.setColor(previewColor);
+        g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1, new float[]{8, 4}, 0));
+        g2d.drawRect(drawingPreview.x, drawingPreview.y, 
+                     drawingPreview.width, drawingPreview.height);
+        
+        // Draw size indicator
+        g2d.setFont(g2d.getFont().deriveFont(10f));
+        String sizeText = drawingPreview.width + " x " + drawingPreview.height;
+        g2d.drawString(sizeText, drawingPreview.x + 5, drawingPreview.y + drawingPreview.height + 15);
     }
 
     private void drawContainer(Graphics2D g2d, ContainerInfo container) {
